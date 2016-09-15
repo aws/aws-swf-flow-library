@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
 import com.amazonaws.services.simpleworkflow.model.DecisionTask;
@@ -168,7 +169,16 @@ public class DecisionTaskPoller implements TaskPoller {
         if (log.isDebugEnabled()) {
             log.debug("poll request begin: " + pollRequest);
         }
-        DecisionTask result = service.pollForDecisionTask(pollRequest);
+        DecisionTask result;
+        try {
+            result = service.pollForDecisionTask(pollRequest);
+        } catch (AmazonServiceException e) {
+            if (log.isDebugEnabled()) {
+                log.debug("poll request failed due to " + e.getMessage() + " retrying without a next page token");
+            }
+            pollRequest.setNextPageToken(null);
+            result = service.pollForDecisionTask(pollRequest);
+        }
         if (log.isDebugEnabled()) {
             log.debug("poll request returned decision task: workflowType=" + result.getWorkflowType() + ", workflowExecution="
                     + result.getWorkflowExecution() + ", startedEventId=" + result.getStartedEventId() + ", previousStartedEventId=" + result.getPreviousStartedEventId());
