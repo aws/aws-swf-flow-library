@@ -26,7 +26,7 @@ import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContextProvid
  */
 public class CurrentActivityExecutionContext {
 
-    private final static ThreadLocal<ActivityExecutionContext> CURRENT = new ThreadLocal<ActivityExecutionContext>();
+    private final static InheritableThreadLocal<ActivityExecutionContext> CURRENT = new InheritableThreadLocal<ActivityExecutionContext>();
 
     /**
      * This is used by activity implementation to get access to the current
