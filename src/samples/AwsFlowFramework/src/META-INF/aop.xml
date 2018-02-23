@@ -4,10 +4,12 @@
      <!-- declare two existing aspects to the weaver -->
      <aspect name="com.amazonaws.services.simpleworkflow.flow.aspectj.AsynchronousAspect"/>
      <aspect name="com.amazonaws.services.simpleworkflow.flow.aspectj.ExponentialRetryAspect"/>
+     <aspect name="com.amazonaws.services.simpleworkflow.flow.aspectj.ExponentialRetryWithJitterAspect"/>
    </aspects>
 
-   <weaver options="-verbose">
+   <weaver options="-verbose -showWeaveInfo">
      <include within="com.amazonaws.services.simpleworkflow.flow.examples..*"/>
+     <include within="com.amazonaws.services.simpleworkflow.flow.aspectj..*"/>
    </weaver>
 
  </aspectj>

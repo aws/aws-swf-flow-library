@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -26,6 +26,8 @@ import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.JsonDataConverter;
 import com.amazonaws.services.simpleworkflow.flow.annotations.Activities;
 import com.amazonaws.services.simpleworkflow.flow.annotations.Activity;
+import com.amazonaws.services.simpleworkflow.flow.annotations.ActivityCompletionRetryOptions;
+import com.amazonaws.services.simpleworkflow.flow.annotations.ActivityExecutionOptions;
 import com.amazonaws.services.simpleworkflow.flow.annotations.ActivityRegistrationOptions;
 import com.amazonaws.services.simpleworkflow.flow.annotations.ManualActivityCompletion;
 import com.amazonaws.services.simpleworkflow.flow.annotations.NullDataConverter;
@@ -33,6 +35,7 @@ import com.amazonaws.services.simpleworkflow.flow.annotations.SkipTypeRegistrati
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationFactory;
+import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeCompletionRetryOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeExecutionOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeRegistrationOptions;
 import com.amazonaws.services.simpleworkflow.model.ActivityType;
@@ -89,11 +92,38 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
 
     }
 
+    private static class AddedType {
+
+        final Object activitiesImplementation;
+
+        final DataConverter converter;
+
+        public AddedType(Object activitiesImplementation, DataConverter converter) {
+            super();
+            this.activitiesImplementation = activitiesImplementation;
+            this.converter = converter;
+        }
+
+        public Object getActivitiesImplementation() {
+            return activitiesImplementation;
+        }
+
+        public DataConverter getConverter() {
+            return converter;
+        }
+
+    }
+
+    /**
+     * Needed to support setting converter after activities implementation
+     */
+    private List<AddedType> addedTypes = new ArrayList<AddedType>();
+
     private List<ActivityType> activityTypesToRegister = new ArrayList<ActivityType>();
 
     private Map<ActivityType, POJOActivityImplementation> implementationsMap = new HashMap<ActivityType, POJOActivityImplementation>();
 
-    private DataConverter dataConverter = new JsonDataConverter();
+    private DataConverter dataConverter;
 
     public POJOActivityImplementationFactory() {
         super();
@@ -120,6 +150,19 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
             throw new IllegalArgumentException("null dataConverter");
         }
         this.dataConverter = dataConverter;
+        List<AddedType> typesToAdd = addedTypes;
+        addedTypes = new ArrayList<AddedType>();
+        activityTypesToRegister.clear();
+        implementationsMap.clear();
+        for (AddedType toAdd : typesToAdd) {
+            try {
+                addActivitiesImplementation(toAdd.getActivitiesImplementation(), toAdd.getConverter());
+            }
+            catch (Exception e) {
+                throw new IllegalStateException("Failure adding activity " + toAdd.getActivitiesImplementation()
+                        + " after setting converter to " + dataConverter, e);
+            }
+        }
     }
 
     public void setActivitiesImplementations(Iterable<Object> activitiesImplementations)
@@ -172,6 +215,7 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
             ParentInterfaceOptions parentOptions = new ParentInterfaceOptions();
             addActivities(activitiesImplementation, interfaze, methods, parentOptions, converter, result);
         }
+        addedTypes.add(new AddedType(activitiesImplementation, converter));
         return new ArrayList<ActivityType>(result);
     }
 
@@ -233,16 +277,16 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
                     }
                     else if (!parentOptions.isSkipRegistration()) {
                         throw new IllegalArgumentException(
-                                "No @ActivityRegistationOptions found either on interface or method for " + method);
+                                "No @ActivityRegistrationOptions found either on interface or method for " + method);
                     }
                 }
                 //TODO: support methods defined in parents as well as overrides
                 if (!addedTypes.contains(activityType)) {
                     Method activityImplementationMethod = implementation.getClass().getMethod(method.getName(),
                             method.getParameterTypes());
-                    ActivityTypeExecutionOptions executionOptions = createExecutionOptions(activityType, activityImplementationMethod);
+                    ActivityTypeExecutionOptions executionOptions = createExecutionOptions(activityType,
+                            activityImplementationMethod);
 
-                    
                     POJOActivityImplementation activityImplementation = new POJOActivityImplementation(implementation, method,
                             registrationOptions, executionOptions, converter);
                     activityTypesToRegister.add(activityType);
@@ -266,8 +310,11 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
 
     private DataConverter createConverter(Class<? extends DataConverter> converterType)
             throws InstantiationException, IllegalAccessException {
+        if (dataConverter != null) {
+            return dataConverter;
+        }
         if (converterType == null || converterType.equals(NullDataConverter.class)) {
-            return dataConverter == null ? new JsonDataConverter() : dataConverter;
+            return new JsonDataConverter();
         }
         return converterType.newInstance();
     }
@@ -323,7 +370,7 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
         if (superClass != null) {
             getImplementedInterfacesAnnotatedWithActivities(superClass, implementedInterfaces);
         }
-        
+
         Class<?>[] interfaces = implementationType.getInterfaces();
         for (Class<?> i : interfaces) {
             if (i.getAnnotation(Activities.class) != null && !implementedInterfaces.contains(i)) {
@@ -337,7 +384,7 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
             }
         }
     }
-    
+
     private boolean removeSuperInterfaces(Class<?> interfaceToAdd, Set<Class<?>> implementedInterfaces) {
         boolean skipAdd = false;
         List<Class<?>> interfacesToRemove = new ArrayList<Class<?>>();
@@ -349,11 +396,11 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
                 skipAdd = true;
             }
         }
-        
+
         for (Class<?> interfaceToRemove : interfacesToRemove) {
             implementedInterfaces.remove(interfaceToRemove);
         }
-        
+
         return skipAdd;
     }
 
@@ -400,14 +447,57 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
 
     private static ActivityTypeExecutionOptions createExecutionOptions(ActivityType activityType, Method activityImplementation) {
         assert (activityType != null);
-
         ActivityTypeExecutionOptions executionOptions = new ActivityTypeExecutionOptions();
         if (activityImplementation != null) {
             ManualActivityCompletion manualCompletion = activityImplementation.getAnnotation(ManualActivityCompletion.class);
+
+            // Iterate our parent classes as well
+            Class<?> cl = activityImplementation.getDeclaringClass();
+            while(manualCompletion == null) {
+                cl = cl.getSuperclass();
+                if(cl == null || cl.equals(Object.class)) {
+                        break;
+                }
+                
+                try {
+                        Method equivalentMethod = cl.getDeclaredMethod(activityImplementation.getName(), activityImplementation.getParameterTypes());
+                        if (equivalentMethod != null) {
+                                manualCompletion = equivalentMethod.getAnnotation(ManualActivityCompletion.class);
+                        }
+                } catch (NoSuchMethodException e) {
+                        // No problem
+                }
+            }
+            
             executionOptions.setManualActivityCompletion(manualCompletion != null);
+            ActivityExecutionOptions options = activityImplementation.getAnnotation(ActivityExecutionOptions.class);
+            if (options == null) {
+                //TODO: Check superclasses for the annotation
+                options = activityImplementation.getDeclaringClass().getAnnotation(ActivityExecutionOptions.class);
+            }
+            if (options != null) {
+                ActivityCompletionRetryOptions completionRetryOptions = options.completionRetryOptions();
+                ActivityTypeCompletionRetryOptions typeCompletionRetryOptions = completionRetryOptionsFromAnnotation(completionRetryOptions);
+                executionOptions.setCompletionRetryOptions(typeCompletionRetryOptions);
+                ActivityCompletionRetryOptions failureRetryOptions = options.failureRetryOptions();
+                ActivityTypeCompletionRetryOptions typeFailureRetryOptions = completionRetryOptionsFromAnnotation(failureRetryOptions);
+                executionOptions.setFailureRetryOptions(typeFailureRetryOptions);
+            }
         }
 
         return executionOptions;
+    }
+
+    public static ActivityTypeCompletionRetryOptions completionRetryOptionsFromAnnotation(
+            ActivityCompletionRetryOptions failureRetryOptions) {
+        ActivityTypeCompletionRetryOptions typeFailureRetryOptions = new ActivityTypeCompletionRetryOptions();
+        typeFailureRetryOptions.setInitialRetryIntervalSeconds(failureRetryOptions.initialRetryIntervalSeconds());
+        typeFailureRetryOptions.setMaximumRetryIntervalSeconds(failureRetryOptions.maximumRetryIntervalSeconds());
+        typeFailureRetryOptions.setMinimumAttempts(failureRetryOptions.minimumAttempts());
+        typeFailureRetryOptions.setMaximumAttempts(failureRetryOptions.maximumAttempts());
+        typeFailureRetryOptions.setBackoffCoefficient(failureRetryOptions.backoffCoefficient());
+        typeFailureRetryOptions.setRetryExpirationSeconds(failureRetryOptions.retryExpirationSeconds());
+        return typeFailureRetryOptions;
     }
 
     private static String emptyStringToNull(String value) {

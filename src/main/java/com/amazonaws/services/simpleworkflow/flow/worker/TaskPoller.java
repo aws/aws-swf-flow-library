@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -16,15 +16,25 @@ package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.util.concurrent.TimeUnit;
 
-
+/**
+ * This interface is for internal use only and may be changed or removed without prior notice.
+ *
+ */
 public interface TaskPoller {
 
     boolean pollAndProcessSingleTask() throws Exception;
+    
+    public void suspend();
+
+    public void resume();
+
+    boolean isSuspended();
 
     void shutdown();
 
     void shutdownNow();
 
     boolean awaitTermination(long left, TimeUnit milliseconds) throws InterruptedException;
+
 
 }

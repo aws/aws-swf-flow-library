@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -20,7 +20,7 @@ class TaskContext extends AsyncContextBase implements AsyncParentContext {
 
     private final Task task;
 
-    private boolean canceled;
+    private boolean executionStartedOrCompleted;
 
     private final String parentTaskMethodName;
 
@@ -40,15 +40,16 @@ class TaskContext extends AsyncContextBase implements AsyncParentContext {
         this.hideStartFromMethod = false;
     }
 
-    public TaskContext(AsyncParentContext parent, Task task, Boolean daemon, String parentTaskMethodName, boolean hideParentTaskMethodName, int skipStackLines,
-            Promise<?>[] waitFor) {
+    public TaskContext(AsyncParentContext parent, Task task, Boolean daemon, String parentTaskMethodName,
+            boolean hideParentTaskMethodName, int skipStackLines, Promise<?>[] waitFor) {
         super(parent, daemon, waitFor, skipStackLines);
         this.task = task;
         this.parentTaskMethodName = parentTaskMethodName;
         this.hideStartFromMethod = hideParentTaskMethodName;
     }
 
-    public TaskContext(Task task, Boolean daemon, String parentTaskMethodName, boolean hideParentTaskMethodName, int skipStackLines, Promise<?>[] waitFor) {
+    public TaskContext(Task task, Boolean daemon, String parentTaskMethodName, boolean hideParentTaskMethodName,
+            int skipStackLines, Promise<?>[] waitFor) {
         super(daemon, waitFor, skipStackLines);
         this.task = task;
         this.parentTaskMethodName = parentTaskMethodName;
@@ -56,30 +57,45 @@ class TaskContext extends AsyncContextBase implements AsyncParentContext {
     }
 
     public void cancel(Throwable cause) {
-        canceled = true;
-        parent.remove(this);
+        if (cancelRequested) {
+            return;
+        }
+        cancelRequested = true;
+        if (!executionStartedOrCompleted) {
+            parent.remove(this);
+        }
     }
 
     @Override
     public void run() {
-        if (canceled) {
+        if (cancelRequested) {
             return;
         }
         setCurrent(this);
+        Error error = null;
         try {
+            executionStartedOrCompleted = true;
             task.doExecute();
             parent.remove(this);
         }
         catch (Throwable e) {
-            if (stackTrace != null && !parent.isRethrown(e)) {
-                AsyncStackTrace merged = new AsyncStackTrace(stackTrace, e.getStackTrace(), 0);
-                merged.setStartFrom(getParentTaskMethodName());
-                merged.setHideStartFromMethod(hideStartFromMethod);
-                e.setStackTrace(merged.getStackTrace());
+            if (e instanceof Error) {
+                error = (Error) e;
             }
-            parent.fail(this, e);
+            else {
+                if (stackTrace != null && !parent.isRethrown(e)) {
+                    AsyncStackTrace merged = new AsyncStackTrace(stackTrace, e.getStackTrace(), 0);
+                    merged.setStartFrom(getParentTaskMethodName());
+                    merged.setHideStartFromMethod(hideStartFromMethod);
+                    e.setStackTrace(merged.getStackTrace());
+                }
+                parent.fail(this, e);
+            }
         }
         finally {
+            if (error != null) {
+                throw error;
+            }
             setCurrent(null);
         }
     }
@@ -123,7 +139,7 @@ class TaskContext extends AsyncContextBase implements AsyncParentContext {
     public String getParentTaskMethodName() {
         return parentTaskMethodName == null ? "doExecute" : parentTaskMethodName;
     }
-    
+
     @Override
     public boolean getHideStartFromMethod() {
         return hideStartFromMethod;

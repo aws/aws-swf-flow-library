@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -38,9 +38,17 @@ import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskFailedRequ
 import com.amazonaws.services.simpleworkflow.model.TaskList;
 import com.amazonaws.services.simpleworkflow.model.UnknownResourceException;
 
+/**
+ * This class is for internal use only and may be changed or removed without prior notice.
+ *
+ */
 public class SynchronousActivityTaskPoller implements TaskPoller {
 
     private static final Log log = LogFactory.getLog(SynchronousActivityTaskPoller.class);
+
+    private static final long SECOND = 1000;
+
+    private static final int MAX_DETAIL_LENGTH = 32768;
 
     private AmazonSimpleWorkflow service;
 
@@ -52,10 +60,6 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
 
     private String identity;
 
-    private SynchronousRetrier reportCompletionRetrier;
-
-    private SynchronousRetrier reportFailureRetrier;
-
     private boolean initialized;
 
     public SynchronousActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String taskListToPoll,
@@ -65,8 +69,6 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
         this.domain = domain;
         this.taskListToPoll = taskListToPoll;
         this.activityImplementationFactory = activityImplementationFactory;
-        setReportCompletionRetryParameters(new ExponentialRetryParameters());
-        setReportFailureRetryParameters(new ExponentialRetryParameters());
     }
 
     public SynchronousActivityTaskPoller() {
@@ -113,22 +115,6 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
 
     public void setIdentity(String identity) {
         this.identity = identity;
-    }
-
-    public ExponentialRetryParameters getReportCompletionRetryParameters() {
-        return reportCompletionRetrier.getRetryParameters();
-    }
-
-    public void setReportCompletionRetryParameters(ExponentialRetryParameters reportCompletionRetryParameters) {
-        this.reportCompletionRetrier = new SynchronousRetrier(reportCompletionRetryParameters, UnknownResourceException.class);
-    }
-
-    public ExponentialRetryParameters getReportFailureRetryParameters() {
-        return reportFailureRetrier.getRetryParameters();
-    }
-
-    public void setReportFailureRetryParameters(ExponentialRetryParameters reportFailureRetryParameters) {
-        this.reportFailureRetrier = new SynchronousRetrier(reportFailureRetryParameters, UnknownResourceException.class);
     }
 
     public String getTaskListToPoll() {
@@ -187,55 +173,85 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
     protected void execute(final ActivityTask task) throws Exception {
         String output = null;
         ActivityType activityType = task.getActivityType();
+        ActivityExecutionContext context = new ActivityExecutionContextImpl(service, domain, task);
+        ActivityTypeExecutionOptions executionOptions = null;
         try {
-            ActivityExecutionContext context = new ActivityExecutionContextImpl(service, domain, task);
             ActivityImplementation activityImplementation = activityImplementationFactory.getActivityImplementation(activityType);
             if (activityImplementation == null) {
-                throw new ActivityFailureException("Unknown activity type: " + activityType);
+                Iterable<ActivityType> typesToRegister = activityImplementationFactory.getActivityTypesToRegister();
+                StringBuilder types = new StringBuilder();
+                types.append("[");
+                for (ActivityType t : typesToRegister) {
+                    if (types.length() > 1) {
+                        types.append(", ");
+                    }
+                    types.append(t);
+                }
+                types.append("]");
+                throw new ActivityFailureException("Activity type \"" + activityType
+                        + "\" is not supported by the ActivityWorker. "
+                        + "Possible cause is activity type version change without changing task list name. "
+                        + "Activity types registered with the worker are: " + types.toString());
             }
+            executionOptions = activityImplementation.getExecutionOptions();
             output = activityImplementation.execute(context);
-            if (!activityImplementation.getExecutionOptions().isManualActivityCompletion()) {
-                respondActivityTaskCompletedWithRetry(task.getTaskToken(), output);
-            }
         }
         catch (CancellationException e) {
-            respondActivityTaskCanceledWithRetry(task.getTaskToken(), null);
+            respondActivityTaskCanceledWithRetry(task.getTaskToken(), null, executionOptions);
             return;
         }
         catch (ActivityFailureException e) {
             if (log.isErrorEnabled()) {
                 log.error("Failure processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
-                        + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType
-                        + ", activityInstanceId=" + task.getActivityId(), e);
+                        + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType + ", activityInstanceId="
+                        + task.getActivityId(), e);
             }
-            respondActivityTaskFailedWithRetry(task.getTaskToken(), e.getReason(), e.getDetails());
+            respondActivityTaskFailedWithRetry(task.getTaskToken(), e.getReason(), e.getDetails(), executionOptions);
+            return;
         }
         catch (Exception e) {
             if (log.isErrorEnabled()) {
                 log.error("Failure processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
-                        + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType
-                        + ", activityInstanceId=" + task.getActivityId(), e);
+                        + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType + ", activityInstanceId="
+                        + task.getActivityId(), e);
             }
             String reason = e.getMessage();
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
             String details = sw.toString();
-            respondActivityTaskFailedWithRetry(task.getTaskToken(), reason, details);
+            if (details.length() > MAX_DETAIL_LENGTH) {
+                log.warn("Length of details is over maximum input length of 32768. Actual details: " + details +
+                        "when processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
+                        + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType + ", activityInstanceId="
+                        + task.getActivityId());
+                details = details.substring(0, MAX_DETAIL_LENGTH);
+            }
+            respondActivityTaskFailedWithRetry(task.getTaskToken(), reason, details, executionOptions);
+            return;
+        }
+        if (executionOptions == null || !executionOptions.isManualActivityCompletion()) {
+            respondActivityTaskCompletedWithRetry(task.getTaskToken(), output, executionOptions);
         }
     }
 
-    protected void respondActivityTaskFailedWithRetry(final String taskToken, final String reason, final String details) {
-        if (reportFailureRetrier == null) {
-            respondActivityTaskFailed(taskToken, reason, details);
+    protected void respondActivityTaskFailedWithRetry(final String taskToken, final String reason, final String details,
+            ActivityTypeExecutionOptions executionOptions) {
+        SynchronousRetrier retrier = null;
+        if (executionOptions != null) {
+            retrier = createRetrier(executionOptions.getFailureRetryOptions());
         }
-        else {
-            reportFailureRetrier.retry(new Runnable() {
+        if (retrier != null) {
+
+            retrier.retry(new Runnable() {
 
                 @Override
                 public void run() {
                     respondActivityTaskFailed(taskToken, reason, details);
                 }
             });
+        }
+        else {
+            respondActivityTaskFailed(taskToken, reason, details);
         }
     }
 
@@ -247,12 +263,15 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
         service.respondActivityTaskFailed(failedResponse);
     }
 
-    protected void respondActivityTaskCanceledWithRetry(final String taskToken, final String details) {
-        if (reportFailureRetrier == null) {
-            respondActivityTaskCanceled(taskToken, details);
+    protected void respondActivityTaskCanceledWithRetry(final String taskToken, final String details,
+            ActivityTypeExecutionOptions executionOptions) {
+        SynchronousRetrier retrier = null;
+        if (executionOptions != null) {
+            ActivityTypeCompletionRetryOptions completionRetryOptions = executionOptions.getCompletionRetryOptions();
+            retrier = createRetrier(completionRetryOptions);
         }
-        else {
-            reportFailureRetrier.retry(new Runnable() {
+        if (retrier != null) {
+            retrier.retry(new Runnable() {
 
                 @Override
                 public void run() {
@@ -260,6 +279,24 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
                 }
             });
         }
+        else {
+            respondActivityTaskCanceled(taskToken, details);
+        }
+    }
+
+    private SynchronousRetrier createRetrier(ActivityTypeCompletionRetryOptions activityTypeCompletionRetryOptions) {
+        if (activityTypeCompletionRetryOptions == null) {
+            return null;
+        }
+        ExponentialRetryParameters retryParameters = new ExponentialRetryParameters();
+        retryParameters.setBackoffCoefficient(activityTypeCompletionRetryOptions.getBackoffCoefficient());
+        retryParameters.setExpirationInterval(activityTypeCompletionRetryOptions.getRetryExpirationSeconds() * SECOND);
+        retryParameters.setInitialInterval(activityTypeCompletionRetryOptions.getInitialRetryIntervalSeconds() * SECOND);
+        retryParameters.setMaximumRetries(activityTypeCompletionRetryOptions.getMaximumAttempts() - 1);
+        retryParameters.setMaximumRetryInterval(activityTypeCompletionRetryOptions.getMaximumRetryIntervalSeconds() * SECOND);
+        retryParameters.setMinimumRetries(activityTypeCompletionRetryOptions.getMinimumAttempts() - 1);
+        SynchronousRetrier retrier = new SynchronousRetrier(retryParameters, UnknownResourceException.class);
+        return retrier;
     }
 
     protected void respondActivityTaskCanceled(String taskToken, String details) {
@@ -269,18 +306,24 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
         service.respondActivityTaskCanceled(canceledResponse);
     }
 
-    protected void respondActivityTaskCompletedWithRetry(final String taskToken, final String output) {
-        if (reportCompletionRetrier == null) {
-            respondActivityTaskCompleted(taskToken, output);
+    protected void respondActivityTaskCompletedWithRetry(final String taskToken, final String output,
+            ActivityTypeExecutionOptions executionOptions) {
+        SynchronousRetrier retrier = null;
+        if (executionOptions != null) {
+            retrier = createRetrier(executionOptions.getCompletionRetryOptions());
         }
-        else {
-            reportCompletionRetrier.retry(new Runnable() {
+        if (retrier != null) {
+
+            retrier.retry(new Runnable() {
 
                 @Override
                 public void run() {
                     respondActivityTaskCompleted(taskToken, output);
                 }
             });
+        }
+        else {
+            respondActivityTaskCompleted(taskToken, output);
         }
     }
 
@@ -309,5 +352,32 @@ public class SynchronousActivityTaskPoller implements TaskPoller {
     public boolean awaitTermination(long left, TimeUnit milliseconds) throws InterruptedException {
         //TODO: Waiting for all currently running pollAndProcessSingleTask to complete 
         return true;
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see
+     * com.amazonaws.services.simpleworkflow.flow.worker.TaskPoller#suspend()
+     */
+    @Override
+    public void suspend() {
+        throw new UnsupportedOperationException();
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see
+     * com.amazonaws.services.simpleworkflow.flow.worker.TaskPoller#resume()
+     */
+    @Override
+    public void resume() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isSuspended() {
+        return false;
     }
 }

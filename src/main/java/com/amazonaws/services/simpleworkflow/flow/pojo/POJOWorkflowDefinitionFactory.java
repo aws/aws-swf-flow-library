@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -15,10 +15,15 @@
 package com.amazonaws.services.simpleworkflow.flow.pojo;
 
 import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map.Entry;
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.JsonDataConverter;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowTypeRegistrationOptions;
+import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeComponentImplementationVersion;
+import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeImplementationOptions;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinition;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactory;
 import com.amazonaws.services.simpleworkflow.flow.worker.CurrentDecisionContext;
@@ -32,6 +37,8 @@ class POJOWorkflowDefinitionFactory extends WorkflowDefinitionFactory {
 
     private final WorkflowTypeRegistrationOptions registrationOptions;
 
+    private final WorkflowTypeImplementationOptions implementationOptions;
+    
     private final POJOWorkflowImplementationFactory implementationFactory;
 
     private final MethodConverterPair workflowImplementationMethod;
@@ -43,14 +50,16 @@ class POJOWorkflowDefinitionFactory extends WorkflowDefinitionFactory {
     private final Object[] constructorArgs;
 
     public POJOWorkflowDefinitionFactory(POJOWorkflowImplementationFactory implementationFactory, WorkflowType workflowType,
-            WorkflowTypeRegistrationOptions registrationOptions, MethodConverterPair workflowImplementationMethod,
-            Map<String, MethodConverterPair> signals, MethodConverterPair getStateMethod, Object[] constructorArgs) {
+    		WorkflowTypeRegistrationOptions registrationOptions, WorkflowTypeImplementationOptions implementationOptions,
+            MethodConverterPair workflowImplementationMethod, Map<String, MethodConverterPair> signals,
+            MethodConverterPair getStateMethod, Object[] constructorArgs) {
         this.implementationFactory = implementationFactory;
         this.workflowType = workflowType;
         this.registrationOptions = registrationOptions;
         this.workflowImplementationMethod = workflowImplementationMethod;
         this.signals = signals;
         this.getStateMethod = getStateMethod;
+        this.implementationOptions = implementationOptions;
         this.constructorArgs = constructorArgs;
     }
 
@@ -62,6 +71,11 @@ class POJOWorkflowDefinitionFactory extends WorkflowDefinitionFactory {
     @Override
     public WorkflowTypeRegistrationOptions getWorkflowRegistrationOptions() {
         return registrationOptions;
+    }
+    
+    @Override
+    public WorkflowTypeImplementationOptions getWorkflowImplementationOptions() {
+        return implementationOptions;
     }
 
     @Override
@@ -86,5 +100,39 @@ class POJOWorkflowDefinitionFactory extends WorkflowDefinitionFactory {
         POJOWorkflowDefinition definition = (POJOWorkflowDefinition) instance;
         implementationFactory.deleteInstance(definition.getImplementationInstance());
         CurrentDecisionContext.unset();
+    }
+    
+    public void setMaximumAllowedComponentImplementationVersions(Map<String, Integer> componentVersions) {
+        componentVersions = new HashMap<String, Integer>(componentVersions);
+        List<WorkflowTypeComponentImplementationVersion> options = implementationOptions.getImplementationComponentVersions();
+        Map<String, WorkflowTypeComponentImplementationVersion> implementationOptionsMap = new HashMap<String, WorkflowTypeComponentImplementationVersion>();
+        for (WorkflowTypeComponentImplementationVersion implementationVersion : options) {
+            String componentName = implementationVersion.getComponentName();
+            implementationOptionsMap.put(componentName, implementationVersion);
+        }
+ 
+        for (Entry<String, Integer> pair : componentVersions.entrySet()) {
+            String componentName = pair.getKey();
+            int maximumAllowed = pair.getValue();
+            WorkflowTypeComponentImplementationVersion implementationOption = implementationOptionsMap.get(componentName);
+            if (implementationOption != null) {
+                implementationOption.setMaximumAllowed(maximumAllowed);
+            }
+            else {
+                implementationOption = new WorkflowTypeComponentImplementationVersion(componentName, maximumAllowed,
+                        maximumAllowed, maximumAllowed);
+                implementationOptions.getImplementationComponentVersions().add(implementationOption);
+            }
+        }
+    }
+ 
+    public Map<String, Integer> getMaximumAllowedComponentImplementationVersions() {
+        List<WorkflowTypeComponentImplementationVersion> options = implementationOptions.getImplementationComponentVersions();
+        Map<String, Integer> result = new HashMap<String, Integer>();
+        for (WorkflowTypeComponentImplementationVersion implementationVersion : options) {
+            String componentName = implementationVersion.getComponentName();
+            result.put(componentName, implementationVersion.getMaximumAllowed());
+        }
+        return result;
     }
 }

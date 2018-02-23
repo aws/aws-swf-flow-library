@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -56,5 +56,14 @@ public interface WorkflowClock {
      *         it contains value passed as context parameter.
      */
     public abstract <T> Promise<T> createTimer(long delaySeconds, final T context);
+    
+    /**
+     * Create a Value that becomes ready after the specified delay and the provided timerId.
+     * 
+     * @param timerId The Id for the timer.
+     * @return Promise that becomes ready after the specified delay. When ready
+     *         it contains value passed as context parameter.
+     */
+    public abstract <T> Promise<T> createTimer(long delaySeconds, final T context, String timerId);
 
 }

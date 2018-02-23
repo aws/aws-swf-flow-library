@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
  * permissions and limitations under the License.
  */
 package com.amazonaws.services.simpleworkflow.flow.core;
+
+import java.util.Collection;
 
 /**
  * Promise that becomes ready when any of its values becomes ready.
@@ -30,12 +32,17 @@ public class OrPromise extends Promise<Void> {
         }
     }
 
+    private static final Promise<?>[] EMPTY_VALUE_ARRAY = new Promise[0];
+
     private final Settable<Void> impl = new Settable<Void>();
 
     private final Promise<?>[] values;
 
     public OrPromise(Promise<?>... values) {
         this.values = values;
+        if (values == null || values.length == 0) {
+            impl.set(null);
+        }
         Runnable callback = new OrPromiseCallback();
         for (Promise<?> value : values) {
             if (value != null) {
@@ -45,6 +52,11 @@ public class OrPromise extends Promise<Void> {
                 callback.run();
             }
         }
+    }
+
+    @SuppressWarnings({ "rawtypes" })
+    public OrPromise(Collection<Promise> collection) {
+        this(collection.toArray(EMPTY_VALUE_ARRAY));
     }
 
     public Promise<?>[] getValues() {

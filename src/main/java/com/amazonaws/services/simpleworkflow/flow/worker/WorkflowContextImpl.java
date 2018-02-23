@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.util.List;
 
+import com.amazonaws.services.simpleworkflow.flow.WorkflowClock;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowContext;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
 import com.amazonaws.services.simpleworkflow.flow.generic.ContinueAsNewWorkflowExecutionParameters;
@@ -27,14 +28,26 @@ import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionStartedEvent
 import com.amazonaws.services.simpleworkflow.model.WorkflowType;
 
 
-class WorkfowContextImpl implements WorkflowContext {
+class WorkflowContextImpl implements WorkflowContext {
 
+    private final WorkflowClock clock;
     private final DecisionTask decisionTask;
     private boolean cancelRequested;
     private ContinueAsNewWorkflowExecutionParameters continueAsNewOnCompletion;
-    
-    public WorkfowContextImpl(DecisionTask decisionTask) {
+    private ComponentVersions componentVersions;
+
+    /**
+     * DecisionTaskPoller.next has an optimization to remove the history page
+     * from the first decision task. This is to keep a handle on the started
+     * event attributes in the first event for future access.
+     */
+    private WorkflowExecutionStartedEventAttributes workflowStartedEventAttributes;
+
+    public WorkflowContextImpl(DecisionTask decisionTask, WorkflowClock clock) {
         this.decisionTask = decisionTask;
+        this.clock = clock;
+        HistoryEvent firstHistoryEvent = decisionTask.getEvents().get(0);
+        this.workflowStartedEventAttributes = firstHistoryEvent.getWorkflowExecutionStartedEventAttributes();
     }
     
     @Override
@@ -110,9 +123,7 @@ class WorkfowContextImpl implements WorkflowContext {
     }
 
     private WorkflowExecutionStartedEventAttributes getWorkflowStartedEventAttributes() {
-        HistoryEvent firstHistoryEvent = decisionTask.getEvents().get(0);
-        WorkflowExecutionStartedEventAttributes attributes = firstHistoryEvent.getWorkflowExecutionStartedEventAttributes();
-        return attributes;
+        return workflowStartedEventAttributes;
     }
 
     @Override
@@ -121,4 +132,19 @@ class WorkfowContextImpl implements WorkflowContext {
         String result = attributes.getTaskPriority();
         return FlowHelpers.taskPriorityToInt(result);
     }
+    
+    @Override
+    public boolean isImplementationVersion(String component, int version) {
+       return componentVersions.isVersion(component, version, clock.isReplaying());
+    }
+ 
+    @Override
+    public Integer getVersion(String component) {
+        return componentVersions.getCurrentVersion(component);
+    }
+ 
+    void setComponentVersions(ComponentVersions componentVersions) {
+        this.componentVersions = componentVersions;
+    }
+    
 }

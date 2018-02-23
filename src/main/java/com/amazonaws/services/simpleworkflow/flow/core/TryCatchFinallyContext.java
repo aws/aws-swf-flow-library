@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -32,8 +32,6 @@ class TryCatchFinallyContext extends AsyncContextBase {
     private State state = State.CREATED;
 
     private Throwable failure;
-
-    private boolean canceled;
 
     private boolean executed;
 
@@ -65,6 +63,7 @@ class TryCatchFinallyContext extends AsyncContextBase {
 
     @Override
     public void add(final AsyncContextBase async, Promise<?> waitFor) {
+        assert !cancelRequested;
         checkClosed();
         heirs.add(async);
         if (!async.isDaemon()) {
@@ -92,32 +91,33 @@ class TryCatchFinallyContext extends AsyncContextBase {
     }
 
     public void cancel(Throwable cause) {
+        if (cause instanceof Error) {
+            throw (Error) cause;
+        }
+        if (cancelRequested) {
+            return;
+        }
         if (state == State.CREATED) {
             assert heirs.size() == 0;
             state = State.CLOSED;
             parent.remove(this);
             return;
         }
-        if (failure == null) {
-            canceled = true;
+        if (failure == null && state == State.TRYING) {
+            cancelRequested = true;
             failure = new CancellationException();
             if (stackTrace != null) {
                 failure.setStackTrace(stackTrace.getStackTrace());
             }
             failure.initCause(cause);
-            if (state == State.TRYING) {
-                cancelHeirs();
-            }
+            cancelHeirs();
         }
-    }
-
-    public boolean isCancelRequested() {
-        return canceled;
     }
 
     public void remove(AsyncContextBase async) {
         checkClosed();
-        heirs.remove(async);
+        boolean removed = heirs.remove(async);
+        assert removed;
         if (!async.isDaemon()) {
             nonDaemonHeirsCount--;
             assert nonDaemonHeirsCount >= 0;
@@ -154,32 +154,45 @@ class TryCatchFinallyContext extends AsyncContextBase {
         }
         setCurrent(this);
         Throwable f = failure;
+        Error error = null;
         try {
             switch (state) {
             case TRYING:
-                if (canceled) {
+                if (cancelRequested) {
                     return;
                 }
                 tryCatchFinally.doTry();
                 break;
             case CATCHING:
                 failure = null;
+                // Need to reset cancelRequested to allow addition of new child tasks
+                cancelRequested = false;
                 tryCatchFinally.doCatch(f);
                 break;
             case FINALIZING:
+                // Need to reset cancelRequested to allow addition of new child tasks
+                cancelRequested = false;
                 tryCatchFinally.doFinally();
             }
         }
         catch (Throwable e) {
-            if (stackTrace != null && e != f) {
-                AsyncStackTrace merged = new AsyncStackTrace(stackTrace, e.getStackTrace(), 0);
-                merged.setStartFrom(getParentTaskMethodName());
-                e.setStackTrace(merged.getStackTrace());
+            if (e instanceof Error) {
+                error = (Error) e;
             }
-            failure = e;
-            cancelHeirs();
+            else {
+                if (stackTrace != null && e != f) {
+                    AsyncStackTrace merged = new AsyncStackTrace(stackTrace, e.getStackTrace(), 0);
+                    merged.setStartFrom(getParentTaskMethodName());
+                    e.setStackTrace(merged.getStackTrace());
+                }
+                failure = e;
+                cancelHeirs();
+            }
         }
         finally {
+            if (error != null) {
+                throw error;
+            }
             setCurrent(null);
             executed = true;
             updateState();

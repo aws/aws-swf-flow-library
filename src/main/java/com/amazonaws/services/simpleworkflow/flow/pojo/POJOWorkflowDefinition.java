@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -20,10 +20,17 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.amazonaws.services.simpleworkflow.flow.*;
+import com.amazonaws.services.simpleworkflow.flow.DataConverter;
+import com.amazonaws.services.simpleworkflow.flow.DataConverterException;
+import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
+import com.amazonaws.services.simpleworkflow.flow.WorkflowException;
+import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
-import com.amazonaws.services.simpleworkflow.flow.core.*;
-import com.amazonaws.services.simpleworkflow.flow.generic.*;
+import com.amazonaws.services.simpleworkflow.flow.core.Promise;
+import com.amazonaws.services.simpleworkflow.flow.core.Settable;
+import com.amazonaws.services.simpleworkflow.flow.core.TryCatch;
+import com.amazonaws.services.simpleworkflow.flow.core.TryCatchFinally;
+import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinition;
 
 @SuppressWarnings("rawtypes")
 public class POJOWorkflowDefinition extends WorkflowDefinition {
@@ -81,7 +88,14 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
 
             @Override
             protected void doCatch(Throwable e) throws Throwable {
-                if (!(e instanceof CancellationException) || !context.getWorkflowContext().isCancelRequested()) {
+                // CancellationException can be caused by:
+                //  1. cancellation request from a server (indicated by isCancelRequested returning true). 
+                //     Should not be converted.
+                //  2. being thrown by user code. Ut should be converted to WorkflowException as any other exception.
+                //  3. being caused by exception from the sibling (signal handler). 
+                //     In this case the exception cause is already WorkflowException. No double conversion necessary.
+                if (!(e instanceof CancellationException)
+                        || (!context.getWorkflowContext().isCancelRequested() && !(e.getCause() instanceof WorkflowException))) {
                     throwWorkflowException(c, e);
                 }
             }
@@ -109,13 +123,21 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
             }
             Method method = signalMethod.getMethod();
             Object[] parameters = c.fromData(details, Object[].class);
-            try {
-                invokeMethod(method, parameters);
-            }
-            catch (Throwable e) {
-                throwWorkflowException(c, e);
-                throw new IllegalStateException("Unreacheable");
-            }
+            final DataConverter delegatedConverter = c;
+            new TryCatch() {
+
+                @Override
+                protected void doTry() throws Throwable {
+                    invokeMethod(method, parameters);
+                }
+
+                @Override
+                protected void doCatch(Throwable e) throws Throwable {
+                    throwWorkflowException(delegatedConverter, e);
+                    throw new IllegalStateException("Unreacheable");
+                }
+
+            };
         }
         else {
             // TODO: Unhandled signal
@@ -147,7 +169,9 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
 
     private Object invokeMethod(final Method method, final Object[] input) throws Throwable {
         try {
-            return method.invoke(workflowImplementationInstance, input);
+            // Fill missing parameters with default values to make addition of new parameters backward compatible
+            Object[] parameters = FlowHelpers.getInputParameters(method.getParameterTypes(), input);
+            return method.invoke(workflowImplementationInstance, parameters);
         }
         catch (InvocationTargetException invocationException) {
             if (invocationException.getTargetException() != null) {
@@ -159,7 +183,7 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
 
     private void throwWorkflowException(DataConverter c, Throwable exception) throws WorkflowException {
         if (exception instanceof WorkflowException) {
-            throw (WorkflowException)exception;
+            throw (WorkflowException) exception;
         }
         String reason = WorkflowExecutionUtils.truncateReason(exception.getMessage());
         String details = null;

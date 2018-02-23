@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -20,6 +20,7 @@ import java.util.Map;
 import com.amazonaws.services.simpleworkflow.flow.LambdaFunctionFailedException;
 import com.amazonaws.services.simpleworkflow.flow.LambdaFunctionTimedOutException;
 import com.amazonaws.services.simpleworkflow.flow.ScheduleLambdaFunctionFailedException;
+import com.amazonaws.services.simpleworkflow.flow.StartLambdaFunctionFailedException;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
 import com.amazonaws.services.simpleworkflow.flow.core.ExternalTask;
@@ -35,6 +36,7 @@ import com.amazonaws.services.simpleworkflow.model.LambdaFunctionStartedEventAtt
 import com.amazonaws.services.simpleworkflow.model.LambdaFunctionTimedOutEventAttributes;
 import com.amazonaws.services.simpleworkflow.model.ScheduleLambdaFunctionDecisionAttributes;
 import com.amazonaws.services.simpleworkflow.model.ScheduleLambdaFunctionFailedEventAttributes;
+import com.amazonaws.services.simpleworkflow.model.StartLambdaFunctionFailedEventAttributes;
 
 public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 	private final class LambdaFunctionCancellationHandler implements
@@ -90,6 +92,13 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 	@Override
 	public Promise<String> scheduleLambdaFunction(final String name,
 			final String input, final long timeoutSeconds) {
+		final String functionId = decisions.getNextId();
+		return scheduleLambdaFunction(name, input, timeoutSeconds, functionId);
+	}
+
+	@Override
+	public Promise<String> scheduleLambdaFunction(final String name,
+			final String input, final long timeoutSeconds, final String functionId) {
 
 		if (timeoutSeconds < 0) {
 			throw new IllegalArgumentException("Negative timeoutSeconds: "
@@ -101,7 +110,6 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 		final ScheduleLambdaFunctionDecisionAttributes attributes = new ScheduleLambdaFunctionDecisionAttributes();
 		attributes.setName(name);
 		attributes.setInput(input);
-		final String functionId = decisions.getNextId();
 		attributes.setId(functionId);
 		if (timeoutSeconds == 0) {
 			attributes
@@ -132,6 +140,20 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 			LambdaFunctionStartedEventAttributes attributes) {
 	}
 
+	void handleStartLambdaFunctionFailed(HistoryEvent event) {
+		StartLambdaFunctionFailedEventAttributes startLambdaFunctionFailedAttributes = event
+				.getStartLambdaFunctionFailedEventAttributes();
+		String functionId = decisions.getFunctionId(startLambdaFunctionFailedAttributes);
+		OpenRequestInfo<String, String> scheduled = scheduledLambdas.remove(functionId);
+		if (decisions.handleStartLambdaFunctionFailed(event)) {
+			String cause = startLambdaFunctionFailedAttributes.getCause();
+			StartLambdaFunctionFailedException failure = new StartLambdaFunctionFailedException(event.getEventId(), 
+			        scheduled.getUserContext(), functionId, cause);
+			ExternalTaskCompletionHandle completionHandle = scheduled.getCompletionHandle();
+			completionHandle.fail(failure);
+		}
+	}
+
 	void handleScheduleLambdaFunctionFailed(HistoryEvent event) {
 		ScheduleLambdaFunctionFailedEventAttributes attributes = event
 				.getScheduleLambdaFunctionFailedEventAttributes();
@@ -146,7 +168,7 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 					.getCompletionHandle();
 			completionHandle.fail(failure);
 		}
-	}
+	} 
 
 	void handleLambdaFunctionCompleted(HistoryEvent event) {
 		LambdaFunctionCompletedEventAttributes attributes = event

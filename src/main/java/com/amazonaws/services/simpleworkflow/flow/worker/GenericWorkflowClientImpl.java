@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -51,6 +51,7 @@ import com.amazonaws.services.simpleworkflow.model.RequestCancelExternalWorkflow
 import com.amazonaws.services.simpleworkflow.model.SignalExternalWorkflowExecutionDecisionAttributes;
 import com.amazonaws.services.simpleworkflow.model.SignalExternalWorkflowExecutionFailedEventAttributes;
 import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionDecisionAttributes;
+import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionFailedCause;
 import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionFailedEventAttributes;
 import com.amazonaws.services.simpleworkflow.model.TaskList;
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
@@ -160,10 +161,23 @@ class GenericWorkflowClientImpl implements GenericWorkflowClient {
 
             @Override
             protected ExternalTaskCancellationHandler doExecute(final ExternalTaskCompletionHandle handle) throws Throwable {
-                decisions.startChildWorkflowExecution(attributes);
                 context.setCompletionHandle(handle);
-                scheduledExternalWorkflows.put(attributes.getWorkflowId(), context);
-                return new ChildWorkflowCancellationHandler(attributes.getWorkflowId(), handle);
+                String workflowId = attributes.getWorkflowId();
+                
+            	if (scheduledExternalWorkflows.containsKey(workflowId)) {
+                    WorkflowExecution workflowExecution = new WorkflowExecution();
+                    workflowExecution.setWorkflowId(workflowId);
+                    WorkflowType workflowType = attributes.getWorkflowType();
+                    long fakeEventId = -1;
+
+                    handle.fail(new StartChildWorkflowFailedException(fakeEventId, workflowExecution, workflowType, StartChildWorkflowExecutionFailedCause.WORKFLOW_ALREADY_RUNNING.toString()));
+                    return new ChildWorkflowCancellationHandler(workflowId, handle);
+            	}
+
+                // should not update this map if the same work flow is running
+                decisions.startChildWorkflowExecution(attributes);
+                scheduledExternalWorkflows.put(workflowId, context);
+                return new ChildWorkflowCancellationHandler(workflowId, handle);
             }
         }.setName(taskName);
         context.setResultDescription("startChildWorkflow " + taskName);

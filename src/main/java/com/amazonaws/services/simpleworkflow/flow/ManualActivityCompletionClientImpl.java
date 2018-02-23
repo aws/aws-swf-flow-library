@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -18,12 +18,17 @@ import java.util.concurrent.CancellationException;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
+import com.amazonaws.services.simpleworkflow.flow.worker.SynchronousActivityTaskPoller;
 import com.amazonaws.services.simpleworkflow.model.ActivityTaskStatus;
 import com.amazonaws.services.simpleworkflow.model.RecordActivityTaskHeartbeatRequest;
 import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCanceledRequest;
 import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCompletedRequest;
 import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskFailedRequest;
 
+/**
+ * TODO: Add exponential retry to manual activity completion the same way it is
+ * done for other activities (see {@link SynchronousActivityTaskPoller})
+ */
 class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient {
 
     private final AmazonSimpleWorkflow service;

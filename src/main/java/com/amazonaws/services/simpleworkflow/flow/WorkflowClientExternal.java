@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -14,9 +14,12 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
+import java.util.Map;
+
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClientExternal;
 import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.model.WorkflowType;
 
 public interface WorkflowClientExternal {
     
@@ -31,5 +34,12 @@ public interface WorkflowClientExternal {
     public GenericWorkflowClientExternal getGenericClient();
     
     public WorkflowExecution getWorkflowExecution();
+    
+    public WorkflowType getWorkflowType();
+    
+    /**
+     * @see WorkflowContext#isImplementationVersion(String, int)
+     */
+    public Map<String, Integer> getImplementationVersions();
     
 }

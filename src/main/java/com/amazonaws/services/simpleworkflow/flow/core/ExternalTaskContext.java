@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -48,6 +48,9 @@ class ExternalTaskContext extends AsyncContextBase {
 
         @Override
         public void fail(final Throwable e) {
+            if (e instanceof Error) {
+                throw (Error) e;
+            }
             if (failure != null) {
                 throw new IllegalStateException("Invalid ExternalTaskCompletionHandle as " + methodName
                         + " failed with exception.", failure);
@@ -80,8 +83,6 @@ class ExternalTaskContext extends AsyncContextBase {
 
     private ExternalTaskCancellationHandler cancellationHandler;
 
-    private boolean canceled;
-
     /**
      * Used to deal with situation when task is completed while in cancellation
      * handler and then exception is thrown from it.
@@ -106,28 +107,37 @@ class ExternalTaskContext extends AsyncContextBase {
         if (completionHandle.failure != null || completionHandle.completed) {
             return;
         }
-        if (canceled) {
+        if (cancelRequested) {
             return;
         }
-        canceled = true;
+        cancelRequested = true;
         if (cancellationHandler != null) {
             parent.getExecutor().execute(new Runnable() {
 
                 @Override
                 public void run() {
+                    Error error = null;
                     try {
                         inCancellationHandler = true;
                         cancellationHandler.handleCancellation(cause);
                     }
                     catch (Throwable e) {
-                        if (stackTrace != null && !parent.isRethrown(e)) {
-                            AsyncStackTrace merged = new AsyncStackTrace(stackTrace, e.getStackTrace(), 0);
-                            merged.setStartFrom(getParentTaskMethodName());
-                            e.setStackTrace(merged.getStackTrace());
+                        if (e instanceof Error) {
+                            error = (Error) e;
                         }
-                        completionHandle.setDoExecuteFailed("ExternalTaskCancellationHandler.handleCancellation", e);
+                        else {
+                            if (stackTrace != null && !parent.isRethrown(e)) {
+                                AsyncStackTrace merged = new AsyncStackTrace(stackTrace, e.getStackTrace(), 0);
+                                merged.setStartFrom(getParentTaskMethodName());
+                                e.setStackTrace(merged.getStackTrace());
+                            }
+                            completionHandle.setDoExecuteFailed("ExternalTaskCancellationHandler.handleCancellation", e);
+                        }
                     }
                     finally {
+                        if (error != null) {
+                            throw error;
+                        }
                         inCancellationHandler = false;
                         if (completionHandle.getFailure() != null) {
                             failToParent(completionHandle.getFailure());
@@ -138,12 +148,14 @@ class ExternalTaskContext extends AsyncContextBase {
                     }
                 }
             });
+        } else {
+            removeFromParent();
         }
     }
 
     @Override
     public void run() {
-        if (canceled) {
+        if (cancelRequested) {
             return;
         }
         setCurrent(parent);
@@ -201,7 +213,7 @@ class ExternalTaskContext extends AsyncContextBase {
 
     @Override
     public String getParentTaskMethodName() {
-        if (canceled) {
+        if (cancelRequested) {
             return "handleCancellation";
         }
         return "doExecute";
@@ -235,4 +247,11 @@ class ExternalTaskContext extends AsyncContextBase {
         return description;
     }
 
+    public String toString() {
+        if (stackTrace != null) {
+            return stackTrace.toString();
+        }
+        return super.toString();
+    }
+    
 }
