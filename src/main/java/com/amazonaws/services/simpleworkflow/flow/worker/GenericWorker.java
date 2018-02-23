@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -16,13 +16,12 @@ package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.management.ManagementFactory;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -80,14 +79,6 @@ public abstract class GenericWorker implements WorkerBase {
                     pollRateThrottler.throttle();
                 }
 
-                CountDownLatch suspender = GenericWorker.this.suspendLatch.get();
-                if (suspender != null) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("poll task suspending latchCount=" + suspender.getCount());
-                    }
-                    suspender.await();
-                }
-
                 if (pollExecutor.isTerminating()) {
                     return;
                 }
@@ -137,11 +128,15 @@ public abstract class GenericWorker implements WorkerBase {
 
     private boolean disableServiceShutdownOnStop;
 
+    private boolean suspended;
+
+    private final AtomicBoolean startRequested = new AtomicBoolean();
+
+    private final AtomicBoolean shutdownRequested = new AtomicBoolean();
+
     private ThreadPoolExecutor pollExecutor;
 
     private String identity = ManagementFactory.getRuntimeMXBean().getName();
-
-    protected final AtomicReference<CountDownLatch> suspendLatch = new AtomicReference<CountDownLatch>();
 
     private int pollThreadCount = 1;
 
@@ -353,7 +348,12 @@ public abstract class GenericWorker implements WorkerBase {
         if (log.isInfoEnabled()) {
             log.info("start: " + toString());
         }
-        checkStarted();
+        if (shutdownRequested.get()) {
+            throw new IllegalStateException("Shutdown Requested. Not restartable.");
+        }
+        if (!startRequested.compareAndSet(false, true)) {
+            return;
+        }
         checkRequiredProperty(service, "service");
         checkRequiredProperty(domain, "domain");
         checkRequiredProperty(taskListToPoll, "taskListToPoll");
@@ -380,6 +380,9 @@ public abstract class GenericWorker implements WorkerBase {
         pollBackoffThrottler = new BackoffThrottler(pollBackoffInitialInterval, pollBackoffMaximumInterval,
                 pollBackoffCoefficient);
         poller = createPoller();
+        if (suspended) {
+            poller.suspend();
+        }
         for (int i = 0; i < pollThreadCount; i++) {
             pollExecutor.execute(new PollServiceTask(poller));
         }
@@ -398,7 +401,7 @@ public abstract class GenericWorker implements WorkerBase {
 
     private void registerDomain() {
         if (domainRetentionPeriodInDays == FlowConstants.NONE) {
-            throw new IllegalStateException("required property domainRetentionPeriodInSeconds is not set");
+            throw new IllegalStateException("required property domainRetentionPeriodInDays is not set");
         }
         try {
             service.registerDomain(new RegisterDomainRequest().withName(domain).withWorkflowExecutionRetentionPeriodInDays(
@@ -424,13 +427,16 @@ public abstract class GenericWorker implements WorkerBase {
     }
 
     private boolean isStarted() {
-        return pollExecutor != null;
+        return startRequested.get();
     }
 
     @Override
     public void shutdown() {
         if (log.isInfoEnabled()) {
             log.info("shutdown");
+        }
+        if (!shutdownRequested.compareAndSet(false, true)) {
+            return;
         }
         if (!isStarted()) {
             return;
@@ -446,6 +452,9 @@ public abstract class GenericWorker implements WorkerBase {
     public void shutdownNow() {
         if (log.isInfoEnabled()) {
             log.info("shutdownNow");
+        }
+        if (!shutdownRequested.compareAndSet(false, true)) {
+            return;
         }
         if (!isStarted()) {
             return;
@@ -468,22 +477,25 @@ public abstract class GenericWorker implements WorkerBase {
 
     @Override
     public boolean shutdownAndAwaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        if (!isStarted()) {
-            return true;
+        long left = TimeUnit.MILLISECONDS.convert(timeout, unit);
+        if (shutdownRequested.compareAndSet(false, true)) {
+            if (!isStarted()) {
+                return true;
+            }
+            long start = System.currentTimeMillis();
+            if (!disableServiceShutdownOnStop) {
+                service.shutdown();
+            }
+            pollExecutor.shutdownNow();
+            try {
+                pollExecutor.awaitTermination(timeout, unit);
+            }
+            finally {
+                poller.shutdown();
+            }
+            long elapsed = System.currentTimeMillis() - start;
+            left = left - elapsed;
         }
-        long start = System.currentTimeMillis();
-        if (!disableServiceShutdownOnStop) {
-            service.shutdown();
-        }
-        pollExecutor.shutdownNow();
-        try {
-            pollExecutor.awaitTermination(timeout, unit);
-        }
-        finally {
-            poller.shutdown();
-        }
-        long elapsed = System.currentTimeMillis() - start;
-        long left = TimeUnit.MILLISECONDS.convert(timeout, unit) - elapsed;
         return awaitTermination(left, TimeUnit.MILLISECONDS);
     }
 
@@ -505,7 +517,10 @@ public abstract class GenericWorker implements WorkerBase {
         if (log.isInfoEnabled()) {
             log.info("suspendPolling");
         }
-        suspendLatch.set(new CountDownLatch(1));
+        suspended = true;
+        if (poller != null) {
+            poller.suspend();
+        }
     }
 
     @Override
@@ -513,9 +528,27 @@ public abstract class GenericWorker implements WorkerBase {
         if (log.isInfoEnabled()) {
             log.info("resumePolling");
         }
-        CountDownLatch existing = suspendLatch.getAndSet(null);
-        if (existing != null) {
-            existing.countDown();
+        suspended = false;
+        if (poller != null) {
+            poller.resume();
+        }
+    }
+
+    @Override
+    public boolean isPollingSuspended() {
+        if (poller != null) {
+            return poller.isSuspended();
+        }
+        return suspended;
+    }
+
+    @Override
+    public void setPollingSuspended(boolean flag) {
+        if (flag) {
+            suspendPolling();
+        }
+        else {
+            resumePolling();
         }
     }
 

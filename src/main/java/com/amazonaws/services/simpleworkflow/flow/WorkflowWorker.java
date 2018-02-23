@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,11 +17,13 @@ package com.amazonaws.services.simpleworkflow.flow;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowDefinitionFactoryFactory;
 import com.amazonaws.services.simpleworkflow.flow.worker.GenericWorkflowWorker;
+import com.amazonaws.services.simpleworkflow.model.WorkflowType;
 
 public class WorkflowWorker implements WorkerBase {
 
@@ -75,7 +77,11 @@ public class WorkflowWorker implements WorkerBase {
     public double getMaximumPollRatePerSecond() {
         return genericWorker.getMaximumPollRatePerSecond();
     }
-
+    
+    /**
+     * Maximum rate of polling and executing decisions (as they are done by the
+     * same thread synchronously) by this WorkflowWorker.
+     */
     @Override
     public void setMaximumPollRatePerSecond(double maximumPollRatePerSecond) {
         genericWorker.setMaximumPollRatePerSecond(maximumPollRatePerSecond);
@@ -85,7 +91,14 @@ public class WorkflowWorker implements WorkerBase {
     public int getMaximumPollRateIntervalMilliseconds() {
         return genericWorker.getMaximumPollRateIntervalMilliseconds();
     }
-
+    
+    /**
+     * Time interval used to measure the polling rate. For example if
+     * {@link #setMaximumPollRatePerSecond(double)} is 100 and interval is 1000
+     * milliseconds then if first 100 requests take 10 milliseconds polling is
+     * suspended for 990 milliseconds. If poll interval is changed to 100
+     * milliseconds then polling is suspended for 90 milliseconds.
+     */
     @Override
     public void setMaximumPollRateIntervalMilliseconds(int maximumPollRateIntervalMilliseconds) {
         genericWorker.setMaximumPollRateIntervalMilliseconds(maximumPollRateIntervalMilliseconds);
@@ -200,6 +213,16 @@ public class WorkflowWorker implements WorkerBase {
     public void resumePolling() {
         genericWorker.resumePolling();
     }
+    
+    @Override
+    public boolean isPollingSuspended() {
+        return genericWorker.isPollingSuspended();
+    }
+
+    @Override
+    public void setPollingSuspended(boolean flag) {
+        genericWorker.setPollingSuspended(flag);
+    }
 
     public void setWorkflowImplementationTypes(Collection<Class<?>> workflowImplementationTypes)
             throws InstantiationException, IllegalAccessException {
@@ -221,7 +244,7 @@ public class WorkflowWorker implements WorkerBase {
     }
 
     public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converter, Object[] constructorArgs) throws InstantiationException, IllegalAccessException {
-        factoryFactory.addWorkflowImplementationType(workflowImplementationType, converter, constructorArgs);
+        factoryFactory.addWorkflowImplementationType(workflowImplementationType, converter, constructorArgs, null);
     }
     
     @Override
@@ -242,6 +265,12 @@ public class WorkflowWorker implements WorkerBase {
     public void setDefaultConverter(DataConverter converter) {
         factoryFactory.setDataConverter(converter);
     }
+    
+    public void addWorkflowImplementationType(Class<?> workflowImplementationType,
+            Map<String, Integer> maximumAllowedComponentImplementationVersions)
+            throws InstantiationException, IllegalAccessException {
+        factoryFactory.addWorkflowImplementationType(workflowImplementationType, maximumAllowedComponentImplementationVersions);
+    }
 
     @Override
     public void setDisableTypeRegistrationOnStart(boolean disableTypeRegistrationOnStart) {
@@ -251,6 +280,28 @@ public class WorkflowWorker implements WorkerBase {
     @Override
     public boolean isDisableTypeRegistrationOnStart() {
         return genericWorker.isDisableTypeRegistrationOnStart();
+    }
+    
+    public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converter,
+            Map<String, Integer> maximumAllowedComponentImplementationVersions)
+            throws InstantiationException, IllegalAccessException {
+        factoryFactory.addWorkflowImplementationType(workflowImplementationType, converter,
+                null, maximumAllowedComponentImplementationVersions);
+    }
+ 
+    /**
+     * @see WorkflowComponentImplementationVersion
+     * @param maximumAllowedImplementationVersions
+     *            {key->WorkflowType, value->{key->componentName,
+     *            value->maximumAllowedVersion}}
+     */
+    public void setMaximumAllowedComponentImplementationVersions(
+            Map<WorkflowType, Map<String, Integer>> maximumAllowedImplementationVersions) {
+        factoryFactory.setMaximumAllowedComponentImplementationVersions(maximumAllowedImplementationVersions);
+    }
+ 
+    public Map<WorkflowType, Map<String, Integer>> getMaximumAllowedComponentImplementationVersions() {
+        return factoryFactory.getMaximumAllowedComponentImplementationVersions();
     }
 
 }

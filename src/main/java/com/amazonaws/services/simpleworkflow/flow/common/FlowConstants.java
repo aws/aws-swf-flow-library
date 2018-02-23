@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -38,6 +38,21 @@ public final class FlowConstants {
      */
     public static final int DEFAULT_TASK_PRIORITY = 0;
 
-	public static final long DEFAULT_LAMBDA_FUNCTION_TIMEOUT = 300;
+    public static final long DEFAULT_LAMBDA_FUNCTION_TIMEOUT = 300;
+    
+    /**
+     *  ExponentialRetryWithJitterPolicy defaults
+     */
+    public static final int EXPONENTIAL_INITIAL_RETRY_INTERVAL_SECONDS = 5;
+
+    public static final int EXPONENTIAL_RETRY_MAXIMUM_ATTEMPTS = -1;
+
+    public static final long EXPONENTIAL_RETRY_MAXIMUM_RETRY_INTERVAL_SECONDS = -1;
+
+    public static final long EXPONENTIAL_RETRY_EXPIRATION_SECONDS = -1;
+
+    public static final double EXPONENTIAL_RETRY_BACKOFF_COEFFICIENT = 2.0;
+
+    public static final double EXPONENTIAL_RETRY_MAXIMUM_JITTER_COEFFICIENT = 0.5;
 
 }

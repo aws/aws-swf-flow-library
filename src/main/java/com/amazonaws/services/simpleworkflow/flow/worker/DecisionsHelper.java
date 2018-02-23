@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -62,6 +62,7 @@ import com.amazonaws.services.simpleworkflow.model.SignalExternalWorkflowExecuti
 import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionDecisionAttributes;
 import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionFailedEventAttributes;
 import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionInitiatedEventAttributes;
+import com.amazonaws.services.simpleworkflow.model.StartLambdaFunctionFailedEventAttributes;
 import com.amazonaws.services.simpleworkflow.model.StartTimerDecisionAttributes;
 import com.amazonaws.services.simpleworkflow.model.StartTimerFailedEventAttributes;
 import com.amazonaws.services.simpleworkflow.model.TaskList;
@@ -96,8 +97,8 @@ class DecisionsHelper {
     private Throwable workflowFailureCause;
 
     private String workflowContextData;
-
-    private String workfowContextFromLastDecisionCompletion;
+    
+    private String workflowContextFromLastDecisionCompletion;
 
     DecisionsHelper(DecisionTask task) {
         this.task = task;
@@ -137,6 +138,14 @@ class DecisionsHelper {
     public boolean handleScheduleLambdaFunctionFailed(HistoryEvent event) {
         ScheduleLambdaFunctionFailedEventAttributes attributes = event.getScheduleLambdaFunctionFailedEventAttributes();
         String functionId = attributes.getId();
+        DecisionStateMachine decision = getDecision(new DecisionId(DecisionTarget.LAMBDA_FUNCTION, functionId));
+        decision.handleInitiationFailedEvent(event);
+        return decision.isDone();
+    }
+
+    public boolean handleStartLambdaFunctionFailed(HistoryEvent event) {
+        StartLambdaFunctionFailedEventAttributes attributes = event.getStartLambdaFunctionFailedEventAttributes();
+        String functionId = getFunctionId(attributes);
         DecisionStateMachine decision = getDecision(new DecisionId(DecisionTarget.LAMBDA_FUNCTION, functionId));
         decision.handleInitiationFailedEvent(event);
         return decision.isDone();
@@ -504,6 +513,7 @@ class DecisionsHelper {
         return result;
     }
 
+    @Override
     public String toString() {
         return WorkflowExecutionUtils.prettyPrintDecisions(getDecisions());
     }
@@ -529,15 +539,15 @@ class DecisionsHelper {
      *         decision completion
      */
     String getWorkflowContextDataToReturn() {
-        if (workfowContextFromLastDecisionCompletion == null
-                || !workfowContextFromLastDecisionCompletion.equals(workflowContextData)) {
-            return workflowContextData;
+        if (workflowContextFromLastDecisionCompletion == null
+                || !workflowContextFromLastDecisionCompletion.equals(workflowContextData)) {
+        	return workflowContextData;
         }
         return null;
     }
 
     void handleDecisionCompletion(DecisionTaskCompletedEventAttributes decisionTaskCompletedEventAttributes) {
-        workfowContextFromLastDecisionCompletion = decisionTaskCompletedEventAttributes.getExecutionContext();
+    	workflowContextFromLastDecisionCompletion = decisionTaskCompletedEventAttributes.getExecutionContext();
     }
 
     DecisionTask getTask() {
@@ -579,6 +589,11 @@ class DecisionsHelper {
         return lambdaSchedulingEventIdToLambdaId.get(sourceId);
     }
 
+    String getFunctionId(StartLambdaFunctionFailedEventAttributes attributes) {
+        Long sourceId = attributes.getScheduledEventId();
+        return lambdaSchedulingEventIdToLambdaId.get(sourceId);
+    }
+
     String getSignalIdFromExternalWorkflowExecutionSignaled(long initiatedEventId) {
         return signalInitiatedEventIdToSignalId.get(initiatedEventId);
     }
@@ -610,7 +625,7 @@ class DecisionsHelper {
     private DecisionStateMachine getDecision(DecisionId decisionId) {
         DecisionStateMachine result = decisions.get(decisionId);
         if (result == null) {
-            throw new IllegalArgumentException("Unknown " + decisionId + ". The possible causes are "
+            throw new IncompatibleWorkflowDefinition("Unknown " + decisionId + ". The possible causes are "
                     + "nondeterministic workflow definition code or incompatible change in the workflow definition.");
         }
         return result;

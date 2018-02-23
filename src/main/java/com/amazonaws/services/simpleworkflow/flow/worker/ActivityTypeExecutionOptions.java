@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -15,63 +15,41 @@
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
 public class ActivityTypeExecutionOptions {
-	private boolean manualActivityCompletion;
-	private long respondTaskCompletedRetryInitialInterval = 1000;
-    private long respondTaskCompletedRetryMaximumInterval = 60000;
-    private int respondTaskCompletedMaximumRetries = 5;
-    private double respondTaskCompletedBackoffCoefficient = 2;
-    private boolean doNotRetryTaskFailed;
-    
-    public double getRespondTaskCompletedBackoffCoefficient() {
-        return respondTaskCompletedBackoffCoefficient;
-    }
-    
-    public void setRespondTaskCompletedBackoffCoefficient(double respondTaskCompletedBackoffCoefficient) {
-        this.respondTaskCompletedBackoffCoefficient = respondTaskCompletedBackoffCoefficient;
-    }
+	
+    private boolean manualActivityCompletion;
 
+    private ActivityTypeCompletionRetryOptions completionRetryOptions;
+    
+    private ActivityTypeCompletionRetryOptions failureRetryOptions;
+
+    
     public boolean isManualActivityCompletion() {
-		return manualActivityCompletion;
-	}
+        return manualActivityCompletion;
+    }
 
-	public void setManualActivityCompletion(boolean flag) {
-		this.manualActivityCompletion = flag;
-	}
-	
-	public long getRespondTaskCompletedRetryInitialInterval() {
-        return respondTaskCompletedRetryInitialInterval;
+    
+    public void setManualActivityCompletion(boolean manualActivityCompletion) {
+        this.manualActivityCompletion = manualActivityCompletion;
+    }
+
+    
+    public ActivityTypeCompletionRetryOptions getCompletionRetryOptions() {
+        return completionRetryOptions;
+    }
+
+    
+    public void setCompletionRetryOptions(ActivityTypeCompletionRetryOptions completionRetryOptions) {
+        this.completionRetryOptions = completionRetryOptions;
+    }
+
+    
+    public ActivityTypeCompletionRetryOptions getFailureRetryOptions() {
+        return failureRetryOptions;
+    }
+
+    
+    public void setFailureRetryOptions(ActivityTypeCompletionRetryOptions failureRetryOptions) {
+        this.failureRetryOptions = failureRetryOptions;
     }
     
-    public void setRespondTaskCompletedRetryInitialInterval(long respondTaskCompletedRetryInitialInterval) {
-        this.respondTaskCompletedRetryInitialInterval = respondTaskCompletedRetryInitialInterval;
-    }
-    
-    public long getRespondTaskCompletedRetryMaximumInterval() {
-        return respondTaskCompletedRetryMaximumInterval;
-    }
-
-    public void setRespondTaskCompletedRetryMaximumInterval(long respondTaskCompletedRetryMaximumInterval) {
-        this.respondTaskCompletedRetryMaximumInterval = respondTaskCompletedRetryMaximumInterval;
-    }
-
-    public int getRespondTaskCompletedMaximumRetries() {
-        return respondTaskCompletedMaximumRetries;
-    }
-
-    public void setRespondTaskCompletedMaximumRetries(int respondTaskCompletedMaximumRetries) {
-        this.respondTaskCompletedMaximumRetries = respondTaskCompletedMaximumRetries;
-    }
-	
-    public boolean isDoNotRetryTaskFailed() {
-        return doNotRetryTaskFailed;
-    }
-    
-    public void setDoNotRetryTaskFailed(boolean doNotRetryTaskFailed) {
-        this.doNotRetryTaskFailed = doNotRetryTaskFailed;
-    }
-
-    @Override
-    public String toString() {
-        return "ActivityTypeExecutionOptions [isAsynchronous=" + manualActivityCompletion + "]";
-    }
 }

@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
@@ -34,29 +35,80 @@ import com.amazonaws.services.simpleworkflow.flow.annotations.NullDataConverter;
 import com.amazonaws.services.simpleworkflow.flow.annotations.Signal;
 import com.amazonaws.services.simpleworkflow.flow.annotations.SkipTypeRegistration;
 import com.amazonaws.services.simpleworkflow.flow.annotations.Workflow;
+import com.amazonaws.services.simpleworkflow.flow.annotations.WorkflowComponentImplementationVersion;
+import com.amazonaws.services.simpleworkflow.flow.annotations.WorkflowComponentImplementationVersions;
 import com.amazonaws.services.simpleworkflow.flow.annotations.WorkflowRegistrationOptions;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactory;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactoryFactory;
+import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeComponentImplementationVersion;
+import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeImplementationOptions;
 import com.amazonaws.services.simpleworkflow.model.WorkflowType;
 
 public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFactoryFactory {
 
-    private DataConverter converter = new JsonDataConverter();
+    private static class AddedType {
+
+        final Class<?> workflowImplementationType;
+
+        final DataConverter converterOverride;
+
+        final Map<String, Integer> maximumAllowedComponentImplementationVersions;
+
+        public AddedType(Class<?> workflowImplementationType, DataConverter converterOverride,
+                Map<String, Integer> maximumAllowedComponentImplementationVersions) {
+            super();
+            this.workflowImplementationType = workflowImplementationType;
+            this.converterOverride = converterOverride;
+            this.maximumAllowedComponentImplementationVersions = maximumAllowedComponentImplementationVersions;
+        }
+
+        public Class<?> getWorkflowImplementationType() {
+            return workflowImplementationType;
+        }
+
+        public DataConverter getConverterOverride() {
+            return converterOverride;
+        }
+
+        public Map<String, Integer> getMaximumAllowedComponentImplementationVersions() {
+            return maximumAllowedComponentImplementationVersions;
+        }
+
+    }
+
+    private DataConverter dataConverter;
+
+    /**
+     * Needed to support setting converter after types
+     */
+    private List<AddedType> addedTypes = new ArrayList<AddedType>();
 
     private List<WorkflowType> workflowTypesToRegister = new ArrayList<WorkflowType>();
 
-    private Map<WorkflowType, WorkflowDefinitionFactory> factories = new HashMap<WorkflowType, WorkflowDefinitionFactory>();
+    private Map<WorkflowType, POJOWorkflowDefinitionFactory> factories = new HashMap<WorkflowType, POJOWorkflowDefinitionFactory>();
 
     private final Collection<Class<?>> workflowImplementationTypes = new ArrayList<Class<?>>();
 
     public DataConverter getDataConverter() {
-        return converter;
+        return dataConverter;
     }
 
     public void setDataConverter(DataConverter converter) {
-        this.converter = converter;
+        this.dataConverter = converter;
+        List<AddedType> typesToAdd = addedTypes;
+        addedTypes = new ArrayList<AddedType>();
+        for (AddedType toAdd : typesToAdd) {
+            try {
+                addWorkflowImplementationType(toAdd.getWorkflowImplementationType(), toAdd.getConverterOverride(),
+                        null, toAdd.getMaximumAllowedComponentImplementationVersions());
+            }
+            catch (Exception e) {
+                throw new IllegalStateException("Failure adding type " + toAdd.getWorkflowImplementationType()
+                        + " after setting converter to " + converter, e);
+            }
+        }
     }
 
     @Override
@@ -71,15 +123,16 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
 
     public void addWorkflowImplementationType(Class<?> workflowImplementationType)
             throws InstantiationException, IllegalAccessException {
-        addWorkflowImplementationType(workflowImplementationType, null);
+        addWorkflowImplementationType(workflowImplementationType, null, null, null);
     }
 
     public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converterOverride)
             throws InstantiationException, IllegalAccessException {
-        addWorkflowImplementationType(workflowImplementationType, converterOverride, null);
+        addWorkflowImplementationType(workflowImplementationType, converterOverride, null, null);
     }
 
-    public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converterOverride, Object[] constructorArgs)
+    public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converterOverride, Object[] constructorArgs
+    		, Map<String, Integer> maximumAllowedComponentImplementationVersions)
         throws InstantiationException, IllegalAccessException {
         if (workflowImplementationType.isInterface()) {
             throw new IllegalArgumentException(workflowImplementationType + " has to be a instantiatable class");
@@ -91,8 +144,16 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
                 + workflowImplementationType);
         }
         for (Class<?> interfaze : implementedInterfaces) {
-            addWorkflowType(interfaze, workflowImplementationType, converterOverride, constructorArgs);
+            addWorkflowType(interfaze, workflowImplementationType, converterOverride, constructorArgs,
+                    maximumAllowedComponentImplementationVersions);
         }
+        addedTypes.add(new AddedType(workflowImplementationType, converterOverride, maximumAllowedComponentImplementationVersions));
+    }
+    
+    public void addWorkflowImplementationType(Class<?> workflowImplementationType,
+            Map<String, Integer> maximumAllowedComponentImplementationVersions)
+            throws InstantiationException, IllegalAccessException {
+        addWorkflowImplementationType(workflowImplementationType, null, null, maximumAllowedComponentImplementationVersions);
     }
 
     public void setWorkflowImplementationTypes(Collection<Class<?>> workflowImplementationTypes)
@@ -106,7 +167,7 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
         return workflowImplementationTypes;
     }
 
-    private void addWorkflowType(Class<?> interfaze, Class<?> workflowImplementationType, DataConverter converterOverride, Object[] constructorArgs)
+    private void addWorkflowType(Class<?> interfaze, Class<?> workflowImplementationType, DataConverter converterOverride, Object[] constructorArgs, Map<String, Integer> maximumAllowedComponentImplementationVersions)
             throws InstantiationException, IllegalAccessException {
         Workflow workflowAnnotation = interfaze.getAnnotation(Workflow.class);
         String interfaceName = interfaze.getSimpleName();
@@ -114,6 +175,7 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
         MethodConverterPair getStateMethod = null;
         WorkflowType workflowType = null;
         WorkflowTypeRegistrationOptions registrationOptions = null;
+        WorkflowTypeImplementationOptions implementationOptions = new WorkflowTypeImplementationOptions();
         Map<String, MethodConverterPair> signals = new HashMap<String, MethodConverterPair>();
         for (Method method : interfaze.getMethods()) {
             if (method.getDeclaringClass().getAnnotation(Workflow.class) == null) {
@@ -160,6 +222,23 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
                                 "@WorkflowRegistrationOptions is not allowed for the interface annotated with @SkipTypeRegistration.");
                     }
                 }
+
+                WorkflowComponentImplementationVersions implementationOptionsAnnotation = workflowImplementationType.getAnnotation(WorkflowComponentImplementationVersions.class);
+                if (implementationOptionsAnnotation != null) {
+                    List<WorkflowTypeComponentImplementationVersion> implementationComponentVersions = new ArrayList<WorkflowTypeComponentImplementationVersion>();
+                    WorkflowComponentImplementationVersion[] componentVersionsAnnotations = implementationOptionsAnnotation.value();
+                    for (WorkflowComponentImplementationVersion componentVersionAnnotation : componentVersionsAnnotations) {
+                        String componentName = componentVersionAnnotation.componentName();
+                        int minimumSupportedImplementationVersion = componentVersionAnnotation.minimumSupported();
+                        int maximumSupportedImplementationVersion = componentVersionAnnotation.maximumSupported();
+                        int maximumAllowedImplementationVersion = componentVersionAnnotation.maximumAllowed();
+                        WorkflowTypeComponentImplementationVersion componentVersion = new WorkflowTypeComponentImplementationVersion(
+                                componentName, minimumSupportedImplementationVersion, maximumSupportedImplementationVersion,
+                                maximumAllowedImplementationVersion);
+                        implementationComponentVersions.add(componentVersion);
+                    }
+                    implementationOptions.setImplementationComponentVersions(implementationComponentVersions);
+                }
             }
             if (signalAnnotation != null) {
                 String signalName = signalAnnotation.name();
@@ -188,14 +267,20 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
             throw new IllegalArgumentException("Workflow definition does not implement any method annotated with @Execute. "
                     + workflowImplementationType);
         }
+        
+        
+        
         POJOWorkflowImplementationFactory implementationFactory = getImplementationFactory(workflowImplementationType, interfaze,
                 workflowType);
-        WorkflowDefinitionFactory factory = new POJOWorkflowDefinitionFactory(implementationFactory, workflowType,
-                registrationOptions, workflowImplementationMethod, signals, getStateMethod, constructorArgs);
+        POJOWorkflowDefinitionFactory factory = new POJOWorkflowDefinitionFactory(implementationFactory, workflowType,
+                registrationOptions, implementationOptions, workflowImplementationMethod, signals, getStateMethod, constructorArgs);
         factories.put(workflowType, factory);
         workflowImplementationTypes.add(workflowImplementationType);
         if (factory.getWorkflowRegistrationOptions() != null) {
             workflowTypesToRegister.add(workflowType);
+        }
+        if (maximumAllowedComponentImplementationVersions != null) {
+            setMaximumAllowedComponentImplementationVersions(workflowType, maximumAllowedComponentImplementationVersions);
         }
     }
 
@@ -297,8 +382,11 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
         if (converterOverride != null) {
             return converterOverride;
         }
+        if (dataConverter != null) {
+            return dataConverter;
+        }
         if (converterTypeFromAnnotation == null || converterTypeFromAnnotation.equals(NullDataConverter.class)) {
-            return converter;
+            return new JsonDataConverter();
         }
         return converterTypeFromAnnotation.newInstance();
     }
@@ -352,5 +440,30 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
             return null;
         }
         return value;
+    }
+    
+    public void setMaximumAllowedComponentImplementationVersions(
+            Map<WorkflowType, Map<String, Integer>> maximumAllowedImplementationVersions) {
+        for (Entry<WorkflowType, Map<String, Integer>> pair : maximumAllowedImplementationVersions.entrySet()) {
+            WorkflowType workflowType = pair.getKey();
+            setMaximumAllowedComponentImplementationVersions(workflowType, pair.getValue());
+        }
+    }
+ 
+    public void setMaximumAllowedComponentImplementationVersions(WorkflowType workflowType,
+            Map<String, Integer> maximumAllowedComponentImplementationVersions) {
+        POJOWorkflowDefinitionFactory factory = factories.get(workflowType);
+        if (factory == null) {
+            throw new IllegalArgumentException("Workflow type " + workflowType + " is not registered");
+        }
+        factory.setMaximumAllowedComponentImplementationVersions(maximumAllowedComponentImplementationVersions);
+    }
+ 
+    public Map<WorkflowType, Map<String, Integer>> getMaximumAllowedComponentImplementationVersions() {
+        Map<WorkflowType, Map<String, Integer>> result = new HashMap<WorkflowType, Map<String, Integer>>();
+        for (Entry<WorkflowType, POJOWorkflowDefinitionFactory> pair : factories.entrySet()) {
+            result.put(pair.getKey(), pair.getValue().getMaximumAllowedComponentImplementationVersions());
+        }
+        return result;
     }
 }

@@ -1,20 +1,21 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
 package com.amazonaws.services.simpleworkflow.flow.spring;
 
 import java.lang.Thread.UncaughtExceptionHandler;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.context.SmartLifecycle;
@@ -215,6 +216,16 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
         genericWorker.resumePolling();
     }
 
+    @Override
+    public boolean isPollingSuspended() {
+        return genericWorker.isPollingSuspended();
+    }
+
+    @Override
+    public void setPollingSuspended(boolean flag) {
+        genericWorker.setPollingSuspended(flag);
+    }
+
     public Iterable<WorkflowType> getWorkflowTypesToRegister() {
         return factoryFactory.getWorkflowTypesToRegister();
     }
@@ -239,6 +250,10 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
         return genericWorker.shutdownAndAwaitTermination(timeout, unit);
     }
 
+    public void shutdownAndAwaitTermination() throws InterruptedException {
+        shutdownAndAwaitTermination(terminationTimeoutSeconds, TimeUnit.SECONDS);
+    }
+
     public void stopNow() {
         genericWorker.shutdownNow();
     }
@@ -261,6 +276,15 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
 
     public void addWorkflowImplementation(Object workflowImplementation) throws InstantiationException, IllegalAccessException {
         factoryFactory.addWorkflowImplementation(workflowImplementation);
+    }
+
+    public void setMaximumAllowedComponentImplementationVersions(
+            Map<WorkflowType, Map<String, Integer>> maximumAllowedImplementationVersions) {
+        factoryFactory.setMaximumAllowedComponentImplementationVersions(maximumAllowedImplementationVersions);
+    }
+
+    public Map<WorkflowType, Map<String, Integer>> getMaximumAllowedComponentImplementationVersions() {
+        return factoryFactory.getMaximumAllowedComponentImplementationVersions();
     }
 
     @Override

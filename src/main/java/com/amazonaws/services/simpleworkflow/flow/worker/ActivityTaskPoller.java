@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -28,21 +27,19 @@ import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation
 import com.amazonaws.services.simpleworkflow.model.ActivityTask;
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
 
+/**
+ * This class is for internal use only and may be changed or removed without prior notice.
+ *
+ */
 public class ActivityTaskPoller extends SynchronousActivityTaskPoller {
 
     private static final Log log = LogFactory.getLog(ActivityTaskPoller.class);
 
     private ThreadPoolExecutor taskExecutorService;
 
-    protected Semaphore pollSemaphore;
+    protected SuspendableSemaphore pollSemaphore;
 
-    private UncaughtExceptionHandler uncaughtExceptionHandler = new UncaughtExceptionHandler() {
-
-        @Override
-        public void uncaughtException(Thread t, Throwable e) {
-            log.error("Failure in thread " + t.getName(), e);
-        }
-    };
+    private UncaughtExceptionHandler uncaughtExceptionHandler;
 
     public ActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String pollTaskList,
             ActivityImplementationFactory activityImplementationFactory, ThreadPoolExecutor taskExecutorService) {
@@ -56,13 +53,21 @@ public class ActivityTaskPoller extends SynchronousActivityTaskPoller {
 
     public void setTaskExecutorService(ThreadPoolExecutor taskExecutorService) {
         this.taskExecutorService = taskExecutorService;
-        pollSemaphore = new Semaphore(taskExecutorService.getMaximumPoolSize());
+        pollSemaphore = new SuspendableSemaphore(taskExecutorService.getMaximumPoolSize());
+    }
+
+    public UncaughtExceptionHandler getUncaughtExceptionHandler() {
+        return uncaughtExceptionHandler;
+    }
+
+    public void setUncaughtExceptionHandler(UncaughtExceptionHandler uncaughtExceptionHandler) {
+        this.uncaughtExceptionHandler = uncaughtExceptionHandler;
     }
 
     /**
      * Poll for a activity task and execute correspondent implementation using
      * provided executor service.
-     * 
+     *
      * @return true if task was polled and decided upon, false if poll timed out
      * @throws Exception
      */
@@ -139,4 +144,20 @@ public class ActivityTaskPoller extends SynchronousActivityTaskPoller {
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return taskExecutorService.awaitTermination(timeout, unit);
     }
+
+    @Override
+    public void suspend() {
+        pollSemaphore.suspend();
+    }
+
+    @Override
+    public void resume() {
+        pollSemaphore.resume();
+    }
+
+    @Override
+    public boolean isSuspended() {
+        return pollSemaphore.isSuspended();
+    }
+
 }

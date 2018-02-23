@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import java.util.Collection;
+import java.util.Map;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowDefinitionFactoryFactory;
@@ -37,6 +38,34 @@ public class SynchronousWorkflowWorker {
     
     public SynchronousWorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
         poller = new DecisionTaskPoller(service, domain, taskListToPoll, new AsyncDecisionTaskHandler(factoryFactory));
+    }
+    
+    public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converterOverride,
+            Map<String, Integer> maximumAllowedComponentImplementationVersions)
+            throws InstantiationException, IllegalAccessException {
+        factoryFactory.addWorkflowImplementationType(workflowImplementationType, converterOverride,
+                null, maximumAllowedComponentImplementationVersions);
+    }
+ 
+    public void addWorkflowImplementationType(Class<?> workflowImplementationType,
+            Map<String, Integer> maximumAllowedComponentImplementationVersions)
+            throws InstantiationException, IllegalAccessException {
+        factoryFactory.addWorkflowImplementationType(workflowImplementationType, maximumAllowedComponentImplementationVersions);
+    }
+ 
+    public void setMaximumAllowedComponentImplementationVersions(
+            Map<WorkflowType, Map<String, Integer>> maximumAllowedImplementationVersions) {
+        factoryFactory.setMaximumAllowedComponentImplementationVersions(maximumAllowedImplementationVersions);
+    }
+ 
+    public void setMaximumAllowedComponentImplementationVersions(WorkflowType workflowType,
+            Map<String, Integer> maximumAllowedComponentImplementationVersions) {
+        factoryFactory.setMaximumAllowedComponentImplementationVersions(workflowType,
+                maximumAllowedComponentImplementationVersions);
+    }
+ 
+    public Map<WorkflowType, Map<String, Integer>> getMaximumAllowedComponentImplementationVersions() {
+        return factoryFactory.getMaximumAllowedComponentImplementationVersions();
     }
 
     public String getIdentity() {

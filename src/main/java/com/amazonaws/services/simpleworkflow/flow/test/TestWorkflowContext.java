@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -133,5 +133,15 @@ public class TestWorkflowContext implements WorkflowContext {
 
     public void setTaskPriority(int taskPriority) {
         this.taskPriority = taskPriority;
+    }
+	
+	@Override
+    public boolean isImplementationVersion(String component, int version) {
+        return true;
+    }
+ 
+    @Override
+    public Integer getVersion(String component) {
+        return null;
     }
 }

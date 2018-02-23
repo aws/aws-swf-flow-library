@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import java.util.List;
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOActivityImplementationFactory;
-import com.amazonaws.services.simpleworkflow.flow.worker.ExponentialRetryParameters;
 import com.amazonaws.services.simpleworkflow.flow.worker.GenericActivityWorker;
 import com.amazonaws.services.simpleworkflow.flow.worker.SynchronousActivityTaskPoller;
 import com.amazonaws.services.simpleworkflow.model.ActivityType;
@@ -110,22 +109,6 @@ public class SynchronousActivityWorker {
 
     public void setIdentity(String identity) {
         poller.setIdentity(identity);
-    }
-
-    public ExponentialRetryParameters getReportCompletionRetryParameters() {
-        return poller.getReportCompletionRetryParameters();
-    }
-
-    public void setReportCompletionRetryParameters(ExponentialRetryParameters reportCompletionRetryParameters) {
-        poller.setReportCompletionRetryParameters(reportCompletionRetryParameters);
-    }
-
-    public ExponentialRetryParameters getReportFailureRetryParameters() {
-        return poller.getReportFailureRetryParameters();
-    }
-
-    public void setReportFailureRetryParameters(ExponentialRetryParameters reportFailureRetryParameters) {
-        poller.setReportFailureRetryParameters(reportFailureRetryParameters);
     }
 
     public String getTaskListToPoll() {

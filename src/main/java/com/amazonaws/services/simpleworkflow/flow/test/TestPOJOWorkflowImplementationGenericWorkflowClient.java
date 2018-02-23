@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow.test;
 
 import java.util.Collection;
+import java.util.Map;
 
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContextProvider;
@@ -97,11 +98,11 @@ public class TestPOJOWorkflowImplementationGenericWorkflowClient implements Gene
             throws InstantiationException, IllegalAccessException {
         factoryFactory.addWorkflowImplementationType(workflowImplementationType, converterOverride);
     }
-
-    public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converterOverride, Object[] constructorArgs)
-        throws InstantiationException, IllegalAccessException {
-        factoryFactory.addWorkflowImplementationType(workflowImplementationType, converterOverride, constructorArgs);
-    }
+    
+    public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converterOverride, Object[] constructorArgs, Map<String, Integer> maximumAllowedComponentImplementationVersions)
+            throws InstantiationException, IllegalAccessException {
+            factoryFactory.addWorkflowImplementationType(workflowImplementationType, converterOverride, constructorArgs, maximumAllowedComponentImplementationVersions);
+        }
 
     public void setWorkflowImplementationTypes(Collection<Class<?>> workflowImplementationTypes)
             throws InstantiationException, IllegalAccessException {

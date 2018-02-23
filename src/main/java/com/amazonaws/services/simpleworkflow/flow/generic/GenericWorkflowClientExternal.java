@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
+import java.util.Map;
+
+import com.amazonaws.services.simpleworkflow.flow.WorkflowContext;
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
 
 
@@ -26,6 +29,11 @@ public interface GenericWorkflowClientExternal {
     public void requestCancelWorkflowExecution(WorkflowExecution execution);
     
     public String getWorkflowState(WorkflowExecution execution);
+    
+    /**
+     * @see WorkflowContext#isImplementationVersion(String, int)
+     */
+    public Map<String, Integer> getImplementationVersions(WorkflowExecution execution);
     
     public void terminateWorkflowExecution(TerminateWorkflowExecutionParameters terminateParameters);
 

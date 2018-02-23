@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -24,13 +24,12 @@ import com.amazonaws.services.simpleworkflow.model.DecisionTask;
 import com.amazonaws.services.simpleworkflow.model.RespondDecisionTaskCompletedRequest;
 
 /**
- * Base class for workflow task handlers. Extend this class to implement custom
- * deciders that can be executed using a
- * {@link WorkflowTaskPollingExecutorService}.
+ * This class is for internal use only and may be changed or removed without prior notice.
+ * 
+ * Base class for workflow task handlers. 
  * 
  * @author fateev, suskin
  * 
- * @see WorkflowTaskPollingExecutorService
  */
 public abstract class DecisionTaskHandler {
 

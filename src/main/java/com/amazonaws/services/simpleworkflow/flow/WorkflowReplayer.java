@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -17,6 +17,7 @@ package com.amazonaws.services.simpleworkflow.flow;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
@@ -241,6 +242,8 @@ public class WorkflowReplayer<T> {
     private final AsyncDecisionTaskHandler taskHandler;
 
     private int replayUpToEventId;
+    
+    private final AtomicBoolean replayed = new AtomicBoolean();
 
     public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
             Class<T> workflowImplementationType) throws InstantiationException, IllegalAccessException {
@@ -270,6 +273,14 @@ public class WorkflowReplayer<T> {
         ff.addWorkflowImplementationType(workflowImplementationType);
         taskIterator = new HistoryIterableDecisionTaskIterator(workflowExecution, history);
         taskHandler = new AsyncDecisionTaskHandler(ff);
+    }
+
+    public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution,
+            Class<T> workflowImplementationType, boolean skipFailedCheck) throws InstantiationException, IllegalAccessException {
+        POJOWorkflowDefinitionFactoryFactory ff = new POJOWorkflowDefinitionFactoryFactory();
+        ff.addWorkflowImplementationType(workflowImplementationType);
+        taskIterator = new HistoryIterableDecisionTaskIterator(workflowExecution, history);
+        taskHandler = new AsyncDecisionTaskHandler(ff, skipFailedCheck);
     }
 
     public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution, final T workflowImplementation)
@@ -323,21 +334,31 @@ public class WorkflowReplayer<T> {
     }
 
     public RespondDecisionTaskCompletedRequest replay() throws Exception {
+        checkReplayed();
         return taskHandler.handleDecisionTask(taskIterator);
     }
 
     @SuppressWarnings("unchecked")
     public T loadWorkflow() throws Exception {
+        checkReplayed();
         WorkflowDefinition definition = taskHandler.loadWorkflowThroughReplay(taskIterator);
         POJOWorkflowDefinition pojoDefinition = (POJOWorkflowDefinition) definition;
         return (T) pojoDefinition.getImplementationInstance();
     }
 
     public List<AsyncTaskInfo> getAsynchronousThreadDump() throws Exception {
+        checkReplayed();
         return taskHandler.getAsynchronousThreadDump(taskIterator);
     }
 
     public String getAsynchronousThreadDumpAsString() throws Exception {
+        checkReplayed();
         return taskHandler.getAsynchronousThreadDumpAsString(taskIterator);
+    }
+    
+    private void checkReplayed() {
+        if (!replayed.compareAndSet(false, true)) {
+            throw new IllegalStateException("WorkflowReplayer instance can be used only once.");
+        }
     }
 }

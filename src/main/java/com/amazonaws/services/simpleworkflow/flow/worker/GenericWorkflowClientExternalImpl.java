@@ -1,19 +1,22 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.UUID;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
@@ -103,11 +106,54 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
 
     @Override
     public String getWorkflowState(WorkflowExecution execution) {
+        String executionContext = getLatestWorkflowExecutionContext(execution);
+        String result;
+        // Should be in sync with HistoryHelper.updateWorkflowContextDataAndComponentVersions
+        if (executionContext != null && executionContext.startsWith(AsyncDecisionTaskHandler.COMPONENT_VERSION_MARKER)) {
+            Scanner scanner = new Scanner(executionContext);
+            scanner.useDelimiter(AsyncDecisionTaskHandler.COMPONENT_VERSION_SEPARATORS_PATTERN);
+            scanner.next();
+            int size = scanner.nextInt();
+            for (int i = 0; i < size; i++) {
+                // component name
+                scanner.next();
+                // version
+                scanner.nextInt();
+            }
+            result = scanner.next(".*");
+        }
+        else {
+            result = executionContext;
+        }
+        return result;
+    }
+ 
+    @Override
+    public Map<String, Integer> getImplementationVersions(WorkflowExecution execution) {
+        String executionContext = getLatestWorkflowExecutionContext(execution);
+        Map<String, Integer> result = new HashMap<String, Integer>();
+        // Should be in sync with HistoryHelper.updateWorkflowContextDataAndComponentVersions
+        if (executionContext.startsWith(AsyncDecisionTaskHandler.COMPONENT_VERSION_MARKER)) {
+            Scanner scanner = new Scanner(executionContext);
+            scanner.useDelimiter(AsyncDecisionTaskHandler.COMPONENT_VERSION_SEPARATORS_PATTERN);
+            scanner.next();
+            int size = scanner.nextInt();
+            for (int i = 0; i < size; i++) {
+                String componentName = scanner.next();
+                int version = scanner.nextInt();
+                result.put(componentName, version);
+            }
+        }
+        return result;
+    }
+    
+    private String getLatestWorkflowExecutionContext(WorkflowExecution execution) {
         DescribeWorkflowExecutionRequest request = new DescribeWorkflowExecutionRequest();
         request.setDomain(domain);
         request.setExecution(execution);
         WorkflowExecutionDetail details = service.describeWorkflowExecution(request);
-        return details.getLatestExecutionContext();
+        String executionContext = details.getLatestExecutionContext();
+        return executionContext;
     }
 
     @Override

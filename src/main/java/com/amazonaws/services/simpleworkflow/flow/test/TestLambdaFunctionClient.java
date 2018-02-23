@@ -1,14 +1,14 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"). You may not
- * use this file except in compliance with the License. A copy of the License is
- * located at
- * 
- * http://aws.amazon.com/apache2.0
- * 
- * or in the "license" file accompanying this file. This file is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -63,10 +63,16 @@ public class TestLambdaFunctionClient implements LambdaFunctionClient {
 	}
 
 	@Override
-	public Promise<String> scheduleLambdaFunction(String name, String input,
-			long timeoutSeconds) {
-		final String id = decisionContextProvider.getDecisionContext()
+	public Promise<String> scheduleLambdaFunction(final String name,
+			final String input, final long timeoutSeconds) {
+		final String functionId = decisionContextProvider.getDecisionContext()
 				.getWorkflowClient().generateUniqueId();
+		return scheduleLambdaFunction(name, input, timeoutSeconds, functionId);
+	}
+
+	@Override
+	public Promise<String> scheduleLambdaFunction(String name, String input,
+			long timeoutSeconds, final String functionId) {
 		final Settable<String> result = new Settable<String>();
 		try {
 			result.set(invoker.invoke(name, input, timeoutSeconds));
@@ -75,7 +81,7 @@ public class TestLambdaFunctionClient implements LambdaFunctionClient {
 				throw (LambdaFunctionException) e;
 			} else {
 				LambdaFunctionFailedException failure = new LambdaFunctionFailedException(
-						0, name, id, e.getMessage());
+						0, name, functionId, e.getMessage());
 				failure.initCause(e);
 				throw failure;
 			}

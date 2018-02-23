@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -26,10 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping;
-
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.model.CloseStatus;
 import com.amazonaws.services.simpleworkflow.model.Decision;
@@ -44,6 +40,9 @@ import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionCompletedEve
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionContinuedAsNewEventAttributes;
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionDetail;
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionInfo;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping;
 
 /**
  * Convenience methods to be used by unit tests and during development.
@@ -134,15 +133,17 @@ public class WorkflowExecutionUtils {
             return null;
         }
 
-        List<HistoryEvent> events = getHistory(service, domain, workflowExecution);
-        HistoryEvent result = null;
-        for (HistoryEvent event : events) {
-            if (isWorkflowExecutionCompletedEvent(event)) {
-                result = event;
-                break;
-            }
+        List<HistoryEvent> events = getHistory(service, domain, workflowExecution, true /* reverseOrder */);
+        if (events.size() == 0) {
+            throw new IllegalStateException("empty history");
         }
-        return result;
+        
+        HistoryEvent last = events.get(0);
+        if (!isWorkflowExecutionCompletedEvent(last)) {
+            throw new IllegalStateException("unexpected last history event for workflow in " + executionInfo.getExecutionStatus()
+                    + " state: " + last.getEventType());
+        }
+        return last;
     }
 
     public static boolean isWorkflowExecutionCompletedEvent(HistoryEvent event) {
@@ -221,6 +222,9 @@ public class WorkflowExecutionUtils {
                 failureCause = historyEvent.getContinueAsNewWorkflowExecutionFailedEventAttributes().getCause();
             } else if (historyEvent.getEventType().equals(EventType.RecordMarkerFailed.toString())) {
             	failureCause = historyEvent.getRecordMarkerFailedEventAttributes().getCause();
+            }
+            else if (historyEvent.getEventType().equals(EventType.RecordMarkerFailed.toString())) {
+                failureCause = historyEvent.getRecordMarkerFailedEventAttributes().getCause();
             }
         }
         
@@ -384,12 +388,16 @@ public class WorkflowExecutionUtils {
         return prettyPrintHistory(events, showWorkflowTasks);
     }
 
-    public static List<HistoryEvent> getHistory(AmazonSimpleWorkflow service, String domain,
-            WorkflowExecution workflowExecution) {
+    public static List<HistoryEvent> getHistory(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution) {
+        return getHistory(service, domain, workflowExecution, false);
+    }
+ 
+    public static List<HistoryEvent> getHistory(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
+            boolean reverseOrder) {
         List<HistoryEvent> events = new ArrayList<HistoryEvent>();
         String nextPageToken = null;
         do {
-            History history = getHistoryPage(nextPageToken, service, domain, workflowExecution);
+            History history = getHistoryPage(nextPageToken, service, domain, workflowExecution, reverseOrder);
             events.addAll(history.getEvents());
             nextPageToken = history.getNextPageToken();
         }
@@ -399,10 +407,15 @@ public class WorkflowExecutionUtils {
 
     public static History getHistoryPage(String nextPageToken, AmazonSimpleWorkflow service, String domain,
             WorkflowExecution workflowExecution) {
-
+    	return getHistoryPage(nextPageToken, service, domain, workflowExecution, false);
+    }
+    
+    public static History getHistoryPage(String nextPageToken, AmazonSimpleWorkflow service, String domain,
+            WorkflowExecution workflowExecution, boolean reverseOrder) {
         GetWorkflowExecutionHistoryRequest getHistoryRequest = new GetWorkflowExecutionHistoryRequest();
         getHistoryRequest.setDomain(domain);
         getHistoryRequest.setExecution(workflowExecution);
+        getHistoryRequest.setReverseOrder(reverseOrder);
         getHistoryRequest.setNextPageToken(nextPageToken);
 
         History history = service.getWorkflowExecutionHistory(getHistoryRequest);

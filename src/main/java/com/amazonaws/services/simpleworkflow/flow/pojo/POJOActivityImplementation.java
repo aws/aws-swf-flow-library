@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DataConverterException;
+import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationBase;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeExecutionOptions;
@@ -51,21 +52,19 @@ class POJOActivityImplementation extends ActivityImplementationBase {
     }
 
     @Override
-    protected String execute(String input, ActivityExecutionContext context) 
+    protected String execute(String input, ActivityExecutionContext context)
             throws ActivityFailureException, CancellationException {
-        //TODO: Support ability to call activity using old client 
-        // after new parameters were added to activity method
-        // It requires creation of inputParameters array of the correct size and
-        // populating the new parameter values with default values for each type
         Object[] inputParameters = converter.fromData(input, Object[].class);
         CurrentActivityExecutionContext.set(context);
         Object result = null;
         try {
+            // Fill missing parameters with default values to make addition of new parameters backward compatible
+            inputParameters = FlowHelpers.getInputParameters(activity.getParameterTypes(), inputParameters);
             result = activity.invoke(activitiesImplmentationObject, inputParameters);
         }
         catch (InvocationTargetException invocationException) {
-            throwActivityFailureException(invocationException.getTargetException() != null 
-                    ? invocationException.getTargetException() : invocationException);
+            throwActivityFailureException(invocationException.getTargetException() != null ? invocationException.getTargetException()
+                    : invocationException);
         }
         catch (IllegalArgumentException illegalArgumentException) {
             throwActivityFailureException(illegalArgumentException);
@@ -88,25 +87,25 @@ class POJOActivityImplementation extends ActivityImplementationBase {
     public ActivityTypeExecutionOptions getExecutionOptions() {
         return executionOptions;
     }
-    
-    void throwActivityFailureException(Throwable exception) 
-            throws ActivityFailureException, CancellationException {
-        
+
+    void throwActivityFailureException(Throwable exception) throws ActivityFailureException, CancellationException {
+
         if (exception instanceof CancellationException) {
-            throw (CancellationException)exception;
+            throw (CancellationException) exception;
         }
-        
+
         String reason = WorkflowExecutionUtils.truncateReason(exception.getMessage());
         String details = null;
         try {
             details = converter.toData(exception);
-        } catch (DataConverterException dataConverterException) {
+        }
+        catch (DataConverterException dataConverterException) {
             if (dataConverterException.getCause() == null) {
                 dataConverterException.initCause(exception);
             }
             throw dataConverterException;
         }
-        
+
         throw new ActivityFailureException(reason, details);
     }
 

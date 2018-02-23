@@ -1,5 +1,5 @@
-/*
- * Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/**
+ * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -177,14 +177,26 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
         genericWorker.setDisableServiceShutdownOnStop(disableServiceShutdownOnStop);
     }
     
+    @Override
     public void suspendPolling() {
         genericWorker.suspendPolling();
     }
 
+    @Override
     public void resumePolling() {
         genericWorker.resumePolling();
     }
     
+    @Override
+    public boolean isPollingSuspended() {
+        return genericWorker.isPollingSuspended();
+    }
+
+    @Override
+    public void setPollingSuspended(boolean flag) {
+        genericWorker.setPollingSuspended(flag);
+    }
+
     @Override
     public void start() {
         genericWorker.start();
@@ -208,6 +220,11 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public boolean shutdownAndAwaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return genericWorker.shutdownAndAwaitTermination(timeout, unit);
     }
+
+    public void shutdownAndAwaitTermination() throws InterruptedException {
+        shutdownAndAwaitTermination(terminationTimeoutSeconds, TimeUnit.SECONDS);
+    }
+
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return genericWorker.awaitTermination(timeout, unit);
     }
