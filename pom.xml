@@ -31,17 +31,27 @@
     <url>https://github.com/aws/aws-swf-flow-library.git</url>
   </scm>
   <properties>
-    <spring.version>3.0.7.RELEASE</spring.version>
+    <spring.version>4.3.14.RELEASE</spring.version>
     <freemarker.version>2.3.9</freemarker.version>
     <aspectj.version>1.8.2</aspectj.version>
-    <jre.version>1.6</jre.version>
+    <jre.version>1.8</jre.version>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-core</artifactId>
+      <version>1.11.283</version>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-simpleworkflow</artifactId>
       <version>1.11.22</version>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-s3</artifactId>
+      <version>1.11.283</version>
     </dependency>
     <dependency>
       <groupId>org.freemarker</groupId>
@@ -79,6 +89,12 @@
       <version>${aspectj.version}</version>
       <optional>true</optional>
     </dependency>
+    <dependency>
+        <groupId>log4j</groupId>
+        <artifactId>log4j</artifactId>
+        <version>1.2.17</version>
+    </dependency> 
+    
    <!-- JUnit is needed to compile the support classes for the workflow service -->
     <dependency>
       <groupId>junit</groupId>
@@ -105,18 +121,19 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>aspectj-maven-plugin</artifactId>
-        <version>1.7</version>
+        <version>1.8</version>
         <executions>
           <execution>
+          <?m2e execute onConfiguration?>
             <goals>
               <goal>compile</goal>
             </goals>
           </execution>
         </executions>
         <configuration>
-          <complianceLevel>1.6</complianceLevel>
-          <source>1.6</source>
-          <target>1.6</target>
+          <complianceLevel>1.8</complianceLevel>
+          <source>1.8</source>
+          <target>1.8</target>
           <encoding>UTF-8</encoding>
         </configuration>
       </plugin>
