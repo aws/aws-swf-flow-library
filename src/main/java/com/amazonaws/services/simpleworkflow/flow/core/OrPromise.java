@@ -36,6 +36,9 @@ public class OrPromise extends Promise<Void> {
 
     public OrPromise(Promise<?>... values) {
         this.values = values;
+        if (values.length == 0) {
+            impl.set(null);
+        }
         Runnable callback = new OrPromiseCallback();
         for (Promise<?> value : values) {
             if (value != null) {
