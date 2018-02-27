@@ -62,7 +62,6 @@ public interface WorkflowContext {
      * <p>
      * 
      * <pre>
-<<<<<<< HEAD
      * if (workflowContext.isImplementationVersion(COMPONENT_NAME, 5)) {
      *     // New code path
      * }
@@ -70,15 +69,6 @@ public interface WorkflowContext {
      *     // Old version 4 code path
      * }
      * else if (workflowContext.isImplementationVersion(COMPONENT_NAME, 3)) {
-=======
-     * if (workflowContext.isVersion(COMPONENT_NAME, 5)) {
-     *     // New code path
-     * }
-     * else if (workflowContext.isVersion(COMPONENT_NAME, 4)) {
-     *     // Old version 4 code path
-     * }
-     * else if (workflowContext.isVersion(COMPONENT_NAME, 3)) {
->>>>>>> d7ef09c... save for test use.
      *     // Even older version 3 code path
      * }
      * else {
@@ -105,11 +95,7 @@ public interface WorkflowContext {
      * <p>
      * 
      * <pre>
-<<<<<<< HEAD
      * if (workflowContext.isImplementationVersion(&quot;comp1&quot;, 1)) {
-=======
-     * if (workflowContext.isVersion(&quot;comp1&quot;, 1)) {
->>>>>>> d7ef09c... save for test use.
      *     // New code path 1
      * }
      * else {
@@ -118,11 +104,7 @@ public interface WorkflowContext {
      * 
      * // Location of the workflow execution when upgrade was deployed.
      * 
-<<<<<<< HEAD
      * if (workflowContext.isImplementationVersion(&quot;comp1&quot;, 1)) {
-=======
-     * if (workflowContext.isVersion(&quot;comp1&quot;, 1)) {
->>>>>>> d7ef09c... save for test use.
      *     // New code path 2
      * }
      * else {
