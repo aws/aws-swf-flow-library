@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.JsonDataConverter;
 import com.amazonaws.services.simpleworkflow.flow.test.TestDecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.test.TestLambdaFunctionClient;
@@ -45,13 +46,20 @@ public class WorkflowTest extends WorkflowTestBase {
 
     private Map<String, TestPOJOActivityImplementationWorker> workers = new HashMap<String, TestPOJOActivityImplementationWorker>();
 
+    private DataConverter dataConverter;
+    
     public WorkflowTest() {
+        this(new JsonDataConverter);
+    }
+    
+    public WorkflowTest(DataConverter dataConverter) {
         super(new TestDecisionContext(new TestPOJOActivityImplementationGenericActivityClient(),
                 new TestPOJOWorkflowImplementationGenericWorkflowClient(), new TestWorkflowClock(), new TestWorkflowContext(),
                 new TestLambdaFunctionClient()));
         activityClient = (TestPOJOActivityImplementationGenericActivityClient) decisionContext.getActivityClient();
         workflowClient = (TestPOJOWorkflowImplementationGenericWorkflowClient) decisionContext.getWorkflowClient();
         lambdaFunctionClient = (TestLambdaFunctionClient) decisionContext.getLambdaFunctionClient();
+        this.dataConverter = dataConverter;
     }
 
     public void addActivitiesImplementation(Object activitiesImplementation) {
@@ -84,7 +92,7 @@ public class WorkflowTest extends WorkflowTestBase {
 
     public void addWorkflowImplementationType(Class<?> workflowImplementationType, Object[] constructorArgs) {
         try {
-            workflowClient.addWorkflowImplementationType(workflowImplementationType, new JsonDataConverter(), constructorArgs, null);
+            workflowClient.addWorkflowImplementationType(workflowImplementationType, dataConverter, constructorArgs, null);
         }
         catch (Exception e) {
             throw new IllegalArgumentException("Invalid workflow type: " + workflowImplementationType, e);
