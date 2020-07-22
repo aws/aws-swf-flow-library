@@ -18,7 +18,6 @@ import java.util.concurrent.CancellationException;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
-import com.amazonaws.services.simpleworkflow.flow.worker.SynchronousActivityTaskPoller;
 import com.amazonaws.services.simpleworkflow.model.ActivityTaskStatus;
 import com.amazonaws.services.simpleworkflow.model.RecordActivityTaskHeartbeatRequest;
 import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCanceledRequest;
@@ -27,7 +26,7 @@ import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskFailedRequ
 
 /**
  * TODO: Add exponential retry to manual activity completion the same way it is
- * done for other activities (see {@link SynchronousActivityTaskPoller})
+ * done for other activities
  */
 class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient {
 

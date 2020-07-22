@@ -16,6 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.spring;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.context.SmartLifecycle;
@@ -36,22 +37,27 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
 
     private final GenericWorkflowWorker genericWorker;
 
-    private final SpringWorkflowDefinitionFactoryFactory factoryFactory = new SpringWorkflowDefinitionFactoryFactory();
+    private final SpringWorkflowDefinitionFactoryFactory factoryFactory;
 
     private int startPhase;
 
-    private long terminationTimeoutSeconds = 60;
+    protected long terminationTimeoutSeconds = 60;
 
     private boolean disableAutoStartup;
 
     public SpringWorkflowWorker() {
-        genericWorker = new GenericWorkflowWorker();
-        genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
+        this(new GenericWorkflowWorker());
     }
 
     public SpringWorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
-        genericWorker = new GenericWorkflowWorker(service, domain, taskListToPoll);
-        genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
+        this(new GenericWorkflowWorker(service, domain, taskListToPoll));
+    }
+
+    public SpringWorkflowWorker(GenericWorkflowWorker genericWorker) {
+        Objects.requireNonNull(genericWorker,"the workflow worker is required");
+        this.genericWorker = genericWorker;
+        this.factoryFactory  = new SpringWorkflowDefinitionFactoryFactory();
+        this.genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
     }
 
     public AmazonSimpleWorkflow getService() {
@@ -142,7 +148,7 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
     }
 
     @Override
-   public void setIdentity(String identity) {
+    public void setIdentity(String identity) {
         genericWorker.setIdentity(identity);
     }
 
@@ -207,6 +213,16 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
     }
 
     @Override
+    public int getExecuteThreadCount() {
+        return genericWorker.getExecuteThreadCount();
+    }
+
+    @Override
+    public void setExecuteThreadCount(int threadCount) {
+        genericWorker.setExecuteThreadCount(threadCount);
+    }
+
+    @Override
     public void suspendPolling() {
         genericWorker.suspendPolling();
     }
@@ -263,6 +279,11 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
         return genericWorker.awaitTermination(timeout, unit);
     }
 
+    @Override
+    public boolean gracefulShutdown(long timeout, TimeUnit unit) throws InterruptedException {
+        return genericWorker.gracefulShutdown(timeout, unit);
+    }
+
     public void setWorkflowImplementations(Iterable<Object> workflowImplementations)
             throws InstantiationException, IllegalAccessException {
         for (Object workflowImplementation : workflowImplementations) {
@@ -294,9 +315,9 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
 
     @Override
     public void stop() {
-        shutdown();
         try {
-            awaitTermination(terminationTimeoutSeconds, TimeUnit.SECONDS);
+            gracefulShutdown(terminationTimeoutSeconds, TimeUnit.SECONDS);
+            shutdownNow();
         }
         catch (InterruptedException e) {
         }

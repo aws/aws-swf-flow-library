@@ -19,6 +19,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import com.amazonaws.services.simpleworkflow.model.ActivityTask;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -33,13 +34,11 @@ import com.amazonaws.services.simpleworkflow.model.RegisterActivityTypeRequest;
 import com.amazonaws.services.simpleworkflow.model.TaskList;
 import com.amazonaws.services.simpleworkflow.model.TypeAlreadyExistsException;
 
-public class GenericActivityWorker extends GenericWorker {
+public class GenericActivityWorker extends GenericWorker<ActivityTask> {
 
     private static final Log log = LogFactory.getLog(GenericActivityWorker.class);
 
-    private static final String POLL_THREAD_NAME_PREFIX = "SWF Activity Poll ";
-
-    private static final String ACTIVITY_THREAD_NAME_PREFIX = "SWF Activity ";
+    private static final String POLL_THREAD_NAME_PREFIX = "SWF Activity ";
 
     private ActivityImplementationFactory activityImplementationFactory;
 
@@ -64,20 +63,24 @@ public class GenericActivityWorker extends GenericWorker {
         this.activityImplementationFactory = activityImplementationFactory;
     }
 
+    /**
+     * @deprecated This method has been deprecated since flow-3.7.
+     */
+    @Deprecated
     public int getTaskExecutorThreadPoolSize() {
         return taskExecutorThreadPoolSize;
     }
 
+    /**
+     * @deprecated This method has been deprecated since flow-3.7.
+     */
+    @Deprecated
     public void setTaskExecutorThreadPoolSize(int taskExecutorThreadPoolSize) {
         if (taskExecutorThreadPoolSize < 1) {
             throw new IllegalArgumentException("0 or negative taskExecutorThreadPoolSize");
         }
         checkStarted();
         this.taskExecutorThreadPoolSize = taskExecutorThreadPoolSize;
-    }
-
-    protected Semaphore createPollSemaphore() {
-        return new Semaphore(taskExecutorThreadPoolSize);
     }
 
     @Override
@@ -93,12 +96,8 @@ public class GenericActivityWorker extends GenericWorker {
 
     @Override
     protected TaskPoller createPoller() {
-        ThreadPoolExecutor tasksExecutor = new ThreadPoolExecutor(1, taskExecutorThreadPoolSize, 1, TimeUnit.MINUTES,
-                new SynchronousQueue<Runnable>());
-        tasksExecutor.setThreadFactory(new ExecutorThreadFactory(ACTIVITY_THREAD_NAME_PREFIX + " " + getTaskListToPoll() + " "));
-        tasksExecutor.setRejectedExecutionHandler(new BlockCallerPolicy());
         ActivityTaskPoller activityTaskPoller = new ActivityTaskPoller(service, domain, getTaskListToPoll(),
-                activityImplementationFactory, tasksExecutor);
+                activityImplementationFactory);
         activityTaskPoller.setIdentity(getIdentity());
         activityTaskPoller.setUncaughtExceptionHandler(uncaughtExceptionHandler);
         return activityTaskPoller;
@@ -110,7 +109,7 @@ public class GenericActivityWorker extends GenericWorker {
     }
 
     public static void registerActivityTypes(AmazonSimpleWorkflow service, String domain, String defaultTaskList,
-            ActivityImplementationFactory activityImplementationFactory) {
+                                             ActivityImplementationFactory activityImplementationFactory) {
         for (ActivityType activityType : activityImplementationFactory.getActivityTypesToRegister()) {
             try {
                 ActivityImplementation implementation = activityImplementationFactory.getActivityImplementation(activityType);
@@ -131,7 +130,7 @@ public class GenericActivityWorker extends GenericWorker {
     }
 
     public static void registerActivityType(AmazonSimpleWorkflow service, String domain, ActivityType activityType,
-            ActivityTypeRegistrationOptions registrationOptions, String taskListToPoll) throws AmazonServiceException {
+                                            ActivityTypeRegistrationOptions registrationOptions, String taskListToPoll) throws AmazonServiceException {
         RegisterActivityTypeRequest registerActivity = new RegisterActivityTypeRequest();
         registerActivity.setDomain(domain);
         String taskList = registrationOptions.getDefaultTaskList();
@@ -151,18 +150,18 @@ public class GenericActivityWorker extends GenericWorker {
         registerActivity.setDefaultTaskHeartbeatTimeout(FlowHelpers.secondsToDuration(registrationOptions.getDefaultTaskHeartbeatTimeoutSeconds()));
         registerActivity.setDefaultTaskScheduleToStartTimeout(FlowHelpers.secondsToDuration(registrationOptions.getDefaultTaskScheduleToStartTimeoutSeconds()));
         registerActivity.setDefaultTaskPriority(FlowHelpers.taskPriorityToString(registrationOptions.getDefaultTaskPriority()));
-        
+
         if (registrationOptions.getDescription() != null) {
             registerActivity.setDescription(registrationOptions.getDescription());
         }
         service.registerActivityType(registerActivity);
         if (log.isInfoEnabled()) {
-            log.info("regisered activity type: " + activityType);
+            log.info("registered activity type: " + activityType);
         }
     }
 
     @Override
-    protected void checkRequredProperties() {
+    protected void checkRequiredProperties() {
         checkRequiredProperty(activityImplementationFactory, "activityImplementationFactory");
     }
 

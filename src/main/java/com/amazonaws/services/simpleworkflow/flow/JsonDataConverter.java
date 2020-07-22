@@ -16,35 +16,36 @@ package com.amazonaws.services.simpleworkflow.flow;
 
 import java.io.IOException;
 
-import com.fasterxml.jackson.core.JsonGenerationException;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * Implements conversion through Jackson JSON processor. Consult its
  * documentation on how to ensure that classes are serializable, configure their
  * serialization through annotations and {@link ObjectMapper} parameters.
- * 
+ *
  * <p>
  * Note that default configuration used by this class includes class name of the
  * every serialized value into the produced JSON. It is done to support
  * polymorphic types out of the box. But in some cases it might be beneficial to
  * disable polymorphic support as it produces much more concise and portable
  * output.
- * 
+ *
  * @author fateev
  */
 public class JsonDataConverter extends DataConverter {
+
+    private static final Log log = LogFactory.getLog(JsonDataConverter.class);
 
     protected final ObjectMapper mapper;
 
     /**
      * Create instance of the converter that uses ObjectMapper with
-     * {@link Feature#FAIL_ON_UNKNOWN_PROPERTIES} set to <code>false</code> and
+     * {@link DeserializationFeature#FAIL_ON_UNKNOWN_PROPERTIES} set to <code>false</code> and
      * default typing set to {@link DefaultTyping#NON_FINAL}.
      */
     public JsonDataConverter() {
@@ -53,8 +54,8 @@ public class JsonDataConverter extends DataConverter {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 
-        // This will allow including type information all non-final types.  This allows correct 
-        // serialization/deserialization of generic collections, for example List<MyType>. 
+        // This will allow including type information all non-final types.  This allows correct
+        // serialization/deserialization of generic collections, for example List<MyType>.
         mapper.enableDefaultTyping(DefaultTyping.NON_FINAL);
     }
 
@@ -70,14 +71,8 @@ public class JsonDataConverter extends DataConverter {
     public String toData(Object value) throws DataConverterException {
         try {
             return mapper.writeValueAsString(value);
-        }
-        catch (JsonGenerationException e) {
-            throwDataConverterException(e, value);
-        }
-        catch (JsonMappingException e) {
-            throwDataConverterException(e, value);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
+            log.error("Unable to serialize data", e);
             throwDataConverterException(e, value);
         }
         throw new IllegalStateException("not reachable");
@@ -94,14 +89,8 @@ public class JsonDataConverter extends DataConverter {
     public <T> T fromData(String serialized, Class<T> valueType) throws DataConverterException {
         try {
             return mapper.readValue(serialized, valueType);
-        }
-        catch (JsonParseException e) {
-            throw new DataConverterException(e);
-        }
-        catch (JsonMappingException e) {
-            throw new DataConverterException(e);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
+            log.error("Unable to deserialize data", e);
             throw new DataConverterException(e);
         }
     }

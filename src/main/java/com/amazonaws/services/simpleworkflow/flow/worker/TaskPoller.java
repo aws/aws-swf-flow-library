@@ -18,23 +18,16 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * This interface is for internal use only and may be changed or removed without prior notice.
- *
  */
-public interface TaskPoller {
+public interface TaskPoller<T>  {
 
-    boolean pollAndProcessSingleTask() throws Exception;
-    
+    T poll() throws InterruptedException;
+
+    void execute(T task) throws Exception;
+
     public void suspend();
 
     public void resume();
 
     boolean isSuspended();
-
-    void shutdown();
-
-    void shutdownNow();
-
-    boolean awaitTermination(long left, TimeUnit milliseconds) throws InterruptedException;
-
-
 }
