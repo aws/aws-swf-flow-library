@@ -35,13 +35,13 @@ import com.amazonaws.services.simpleworkflow.model.TaskList;
  * This class is for internal use only and may be changed or removed without prior notice.
  *
  */
-public class DecisionTaskPoller implements TaskPoller {
+public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.DecisionTaskIterator> {
 
     private static final Log log = LogFactory.getLog(DecisionTaskPoller.class);
 
     private static final Log decisionsLog = LogFactory.getLog(DecisionTaskPoller.class.getName() + ".decisions");
 
-    private class DecisionTaskIterator implements Iterator<DecisionTask> {
+    protected class DecisionTaskIterator implements Iterator<DecisionTask> {
 
         private final DecisionTask firstDecisionTask;
 
@@ -66,14 +66,14 @@ public class DecisionTaskPoller implements TaskPoller {
                 next = null;
             }
             else {
-            	try {
+                try {
                     next = poll(next.getNextPageToken());
                 }
                 catch (Exception e) {
                     // Error is used as it fails a decision instead of affecting workflow code
                     throw new Error("Failure getting next page of history events.", e);
                 }
-            	
+
                 // Just to not keep around the history page
                 if (firstDecisionTask != result) {
                     firstDecisionTask.setEvents(null);
@@ -106,7 +106,7 @@ public class DecisionTaskPoller implements TaskPoller {
     private DecisionTaskHandler decisionTaskHandler;
 
     private boolean suspended;
-    
+
     private final Lock lock = new ReentrantLock();
 
     private final Condition suspentionCondition = lock.newCondition();
@@ -116,7 +116,7 @@ public class DecisionTaskPoller implements TaskPoller {
     }
 
     public DecisionTaskPoller(AmazonSimpleWorkflow service, String domain, String taskListToPoll,
-            DecisionTaskHandler decisionTaskHandler) {
+                              DecisionTaskHandler decisionTaskHandler) {
         this.service = service;
         this.domain = domain;
         this.taskListToPoll = taskListToPoll;
@@ -169,9 +169,9 @@ public class DecisionTaskPoller implements TaskPoller {
 
     /**
      * Poll for a task using {@link #getPollTimeoutInSeconds()}
-     * 
+     *
      * @param nextResultToken
-     * 
+     *
      * @return null if poll timed out
      * @throws DeciderExecutorConfigurationException
      */
@@ -191,8 +191,8 @@ public class DecisionTaskPoller implements TaskPoller {
         DecisionTask result = service.pollForDecisionTask(pollRequest);
         if (log.isDebugEnabled()) {
             log.debug("poll request returned decision task: workflowType=" + result.getWorkflowType() + ", workflowExecution="
-            		 + result.getWorkflowExecution() + ", startedEventId=" + result.getStartedEventId()
-                     + ", previousStartedEventId=" + result.getPreviousStartedEventId());
+                    + result.getWorkflowExecution() + ", startedEventId=" + result.getStartedEventId()
+                    + ", previousStartedEventId=" + result.getPreviousStartedEventId());
         }
 
         if (result == null || result.getTaskToken() == null) {
@@ -201,64 +201,52 @@ public class DecisionTaskPoller implements TaskPoller {
         return result;
     }
 
-    /**
-     * Poll for a workflow task and call appropriate decider. This method might
-     * call the service multiple times to retrieve the whole history it it is
-     * paginated.
-     * 
-     * @return true if task was polled and decided upon, false if poll timed out
-     * @throws Exception
-     * @throws DeciderConfigurationException
-     */
     @Override
-    public boolean pollAndProcessSingleTask() throws Exception {
+    public DecisionTaskIterator poll() throws InterruptedException {
         waitIfSuspended();
-        DecisionTaskIterator tasks = null;
+        DecisionTaskIterator tasks = new DecisionTaskIterator();
+        if (!tasks.hasNext()) {
+            return null;
+        }
+        return tasks;
+    }
+
+    @Override
+    public void execute(final DecisionTaskIterator tasks) throws Exception {
         RespondDecisionTaskCompletedRequest taskCompletedRequest = null;
         try {
-            tasks = new DecisionTaskIterator();
-            if (!tasks.hasNext()) {
-                return false;
-            }
             taskCompletedRequest = decisionTaskHandler.handleDecisionTask(tasks);
             if (decisionsLog.isTraceEnabled()) {
                 decisionsLog.trace(WorkflowExecutionUtils.prettyPrintDecisions(taskCompletedRequest.getDecisions()));
             }
             service.respondDecisionTaskCompleted(taskCompletedRequest);
-        }
-        catch (Error e) {
-            if (tasks != null) {
-                DecisionTask firstTask = tasks.getFirstDecisionTask();
-                if (firstTask != null) {
-                    if (log.isWarnEnabled()) {
-                        log.warn("DecisionTask failure: taskId= " + firstTask.getStartedEventId() + ", workflowExecution="
-                                + firstTask.getWorkflowExecution(), e);
-                    }
+        } catch (Error e) {
+            DecisionTask firstTask = tasks.getFirstDecisionTask();
+            if (firstTask != null) {
+                if (log.isWarnEnabled()) {
+                    log.warn("DecisionTask failure: taskId= " + firstTask.getStartedEventId() + ", workflowExecution="
+                            + firstTask.getWorkflowExecution(), e);
                 }
             }
             throw e;
-        }
-        catch (Exception e) {
-            if (tasks != null) {
-                DecisionTask firstTask = tasks.getFirstDecisionTask();
-                if (firstTask != null) {
-                    if (log.isWarnEnabled()) {
-                        log.warn("DecisionTask failure: taskId= " + firstTask.getStartedEventId() + ", workflowExecution="
-                                + firstTask.getWorkflowExecution(), e);
-                    }
-                    if (log.isDebugEnabled() && firstTask.getEvents() != null) {
-                        log.debug("Failed taskId=" + firstTask.getStartedEventId() + " history: "
-                                + WorkflowExecutionUtils.prettyPrintHistory(firstTask.getEvents(), true));
-                    }
+        } catch (Exception e) {
+            DecisionTask firstTask = tasks.getFirstDecisionTask();
+            if (firstTask != null) {
+                if (log.isWarnEnabled()) {
+                    log.warn("DecisionTask failure: taskId= " + firstTask.getStartedEventId() + ", workflowExecution="
+                            + firstTask.getWorkflowExecution(), e);
                 }
-                if (taskCompletedRequest != null && decisionsLog.isWarnEnabled()) {
-                    decisionsLog.warn("Failed taskId=" + firstTask.getStartedEventId() + " decisions="
-                            + WorkflowExecutionUtils.prettyPrintDecisions(taskCompletedRequest.getDecisions()));
+                if (log.isDebugEnabled() && firstTask.getEvents() != null) {
+                    log.debug("Failed taskId=" + firstTask.getStartedEventId() + " history: "
+                            + WorkflowExecutionUtils.prettyPrintHistory(firstTask.getEvents(), true));
                 }
+            }
+            if (taskCompletedRequest != null && decisionsLog.isWarnEnabled()) {
+                decisionsLog.warn("Failed taskId=" + firstTask.getStartedEventId() + " decisions="
+                        + WorkflowExecutionUtils.prettyPrintDecisions(taskCompletedRequest.getDecisions()));
             }
             throw e;
         }
-        return true;
     }
 
     private void waitIfSuspended() throws InterruptedException {
@@ -300,20 +288,6 @@ public class DecisionTaskPoller implements TaskPoller {
         }
     }
 
-    @Override
-    public void shutdown() {
-    }
-
-    @Override
-    public void shutdownNow() {
-    }
-
-    @Override
-    public boolean awaitTermination(long left, TimeUnit milliseconds) throws InterruptedException {
-        //TODO: Waiting for all currently running pollAndProcessSingleTask to complete 
-        return false;
-    }
-    
     @Override
     public void suspend() {
         lock.lock();

@@ -16,6 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
@@ -28,10 +29,16 @@ public class ActivityWorker implements WorkerBase {
 
     private final GenericActivityWorker genericWorker;
 
-    private final POJOActivityImplementationFactory factory = new POJOActivityImplementationFactory();
+    private final POJOActivityImplementationFactory factory;
 
     public ActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
-        genericWorker = new GenericActivityWorker(service, domain, taskListToPoll);
+        this(new GenericActivityWorker(service, domain, taskListToPoll));
+    }
+
+    public ActivityWorker(GenericActivityWorker genericWorker) {
+        Objects.requireNonNull(genericWorker,"the activity worker is required");
+        this.genericWorker = genericWorker;
+        this.factory =  new POJOActivityImplementationFactory();
         genericWorker.setActivityImplementationFactory(factory);
     }
 
@@ -80,10 +87,18 @@ public class ActivityWorker implements WorkerBase {
         factory.setDataConverter(dataConverter);
     }
 
+    /**
+     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #getExecuteThreadCount()} instead.
+     */
+    @Deprecated
     public int getTaskExecutorThreadPoolSize() {
         return genericWorker.getTaskExecutorThreadPoolSize();
     }
 
+    /**
+     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #setExecuteThreadCount(int)} instead.
+     */
+    @Deprecated
     public void setTaskExecutorThreadPoolSize(int taskExecutorThreadPoolSize) {
         genericWorker.setTaskExecutorThreadPoolSize(taskExecutorThreadPoolSize);
     }
@@ -116,6 +131,11 @@ public class ActivityWorker implements WorkerBase {
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return genericWorker.awaitTermination(timeout, unit);
+    }
+
+    @Override
+    public boolean gracefulShutdown(long timeout, TimeUnit unit) throws InterruptedException {
+        return genericWorker.gracefulShutdown(timeout, unit);
     }
 
     @Override
@@ -229,6 +249,16 @@ public class ActivityWorker implements WorkerBase {
     }
 
     @Override
+    public int getExecuteThreadCount() {
+        return genericWorker.getExecuteThreadCount();
+    }
+
+    @Override
+    public void setExecuteThreadCount(int threadCount) {
+        genericWorker.setExecuteThreadCount(threadCount);
+    }
+
+    @Override
     public void setDisableTypeRegistrationOnStart(boolean disableTypeRegistrationOnStart) {
         genericWorker.setDisableTypeRegistrationOnStart(disableTypeRegistrationOnStart);
     }
@@ -237,7 +267,7 @@ public class ActivityWorker implements WorkerBase {
     public boolean isDisableTypeRegistrationOnStart() {
         return genericWorker.isDisableTypeRegistrationOnStart();
     }
-    
+
     @Override
     public void registerTypesToPoll() {
         genericWorker.registerTypesToPoll();

@@ -84,7 +84,7 @@ public class WorkflowTest extends WorkflowTestBase {
 
     public void addWorkflowImplementationType(Class<?> workflowImplementationType, Object[] constructorArgs) {
         try {
-            workflowClient.addWorkflowImplementationType(workflowImplementationType, new JsonDataConverter(), constructorArgs, null);
+            workflowClient.addWorkflowImplementationType(workflowImplementationType, null /* use annotation specified or default */, constructorArgs, null);
         }
         catch (Exception e) {
             throw new IllegalArgumentException("Invalid workflow type: " + workflowImplementationType, e);
