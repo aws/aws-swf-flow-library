@@ -30,7 +30,7 @@ import com.amazonaws.services.simpleworkflow.model.TaskList;
 import com.amazonaws.services.simpleworkflow.model.TypeAlreadyExistsException;
 import com.amazonaws.services.simpleworkflow.model.WorkflowType;
 
-public class GenericWorkflowWorker extends GenericWorker {
+public class GenericWorkflowWorker extends GenericWorker<DecisionTaskPoller.DecisionTaskIterator> {
 
     private static final Log log = LogFactory.getLog(GenericWorkflowWorker.class);
 
@@ -63,7 +63,7 @@ public class GenericWorkflowWorker extends GenericWorker {
     }
 
     @Override
-    protected void checkRequredProperties() {
+    protected void checkRequiredProperties() {
         checkRequiredProperty(workflowDefinitionFactoryFactory, "workflowDefinitionFactoryFactory");
     }
 
@@ -95,7 +95,7 @@ public class GenericWorkflowWorker extends GenericWorker {
     }
 
     public static void registerWorkflowTypes(AmazonSimpleWorkflow service, String domain, String defaultTaskList,
-            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory) {
+                                             WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory) {
         for (WorkflowType typeToRegister : workflowDefinitionFactoryFactory.getWorkflowTypesToRegister()) {
             WorkflowDefinitionFactory workflowDefinitionFactory = workflowDefinitionFactoryFactory.getWorkflowDefinitionFactory(typeToRegister);
             WorkflowTypeRegistrationOptions registrationOptions = workflowDefinitionFactory.getWorkflowRegistrationOptions();
@@ -114,7 +114,7 @@ public class GenericWorkflowWorker extends GenericWorker {
     }
 
     public static void registerWorkflowType(AmazonSimpleWorkflow service, String domain, WorkflowType workflowType,
-            WorkflowTypeRegistrationOptions registrationOptions, String defaultTaskList) {
+                                            WorkflowTypeRegistrationOptions registrationOptions, String defaultTaskList) {
         RegisterWorkflowTypeRequest registerWorkflow = new RegisterWorkflowTypeRequest();
 
         registerWorkflow.setDomain(domain);

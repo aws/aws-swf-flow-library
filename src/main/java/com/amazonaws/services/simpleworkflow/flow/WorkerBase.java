@@ -29,7 +29,7 @@ public interface WorkerBase extends SuspendableWorker {
 
     /**
      * Should domain be registered on startup. Default is <code>false</code>.
-     * When enabled {@link #setDomainRetentionPeriodInDays(Long)} property is
+     * When enabled {@link #setDomainRetentionPeriodInDays(long)} property is
      * required.
      */
     void setRegisterDomain(boolean registerDomain);
@@ -53,7 +53,7 @@ public interface WorkerBase extends SuspendableWorker {
     /**
      * Maximum number of poll request to the task list per second allowed.
      * Default is 0 which means unlimited.
-     * 
+     *
      * @see #setMaximumPollRateIntervalMilliseconds(int)
      */
     void setMaximumPollRatePerSecond(double maximumPollRatePerSecond);
@@ -67,7 +67,7 @@ public interface WorkerBase extends SuspendableWorker {
      * more then one poll per 100 milliseconds. If poll rate interval is 10
      * seconds then 100 request can be emitted as fast as possible, but then the
      * polling stops until 10 seconds pass.
-     * 
+     *
      * @see #setMaximumPollRatePerSecond(double)
      */
     void setMaximumPollRateIntervalMilliseconds(int maximumPollRateIntervalMilliseconds);
@@ -86,7 +86,7 @@ public interface WorkerBase extends SuspendableWorker {
      * Set the identity that worker specifies in the poll requests. This value
      * ends up stored in the identity field of the corresponding Start history
      * event. Default is "pid"@"host".
-     * 
+     *
      * @param identity
      *            maximum size is 256 characters.
      */
@@ -97,7 +97,7 @@ public interface WorkerBase extends SuspendableWorker {
     /**
      * Failed poll requests are retried after an interval defined by an
      * exponential backoff algorithm. See BackoffThrottler for more info.
-     * 
+     *
      * @param backoffInitialInterval
      *            the interval between failure and the first retry. Default is
      *            100.
@@ -108,7 +108,7 @@ public interface WorkerBase extends SuspendableWorker {
 
     /**
      * @see WorkerBase#setPollBackoffInitialInterval(long)
-     * 
+     *
      * @param backoffMaximumInterval
      *            maximum interval between poll request retries. Default is
      *            60000 (one minute).
@@ -119,7 +119,7 @@ public interface WorkerBase extends SuspendableWorker {
 
     /**
      * @see WorkerBase#setPollBackoffInitialInterval(long)
-     * 
+     *
      * @param backoffCoefficient
      *            coefficient that defines how fast retry interval grows in case
      *            of poll request failures. Default is 2.0.
@@ -148,10 +148,20 @@ public interface WorkerBase extends SuspendableWorker {
      */
     void setPollThreadCount(int threadCount);
 
+    int getExecuteThreadCount();
+
+    /**
+     * Defines how many concurrent threads are used by the given worker to poll
+     * the specified task list. Default is 1. This will be the actual number of
+     * threads which execute tasks which are polled from the specified task list
+     * by Poll threads
+     */
+    void setExecuteThreadCount(int threadCount);
+
     /**
      * Try to register every type (activity or workflow depending on worker)
      * that are configured with the worker.
-     * 
+     *
      * @see #setDisableTypeRegistrationOnStart(boolean)
      */
     void registerTypesToPoll();

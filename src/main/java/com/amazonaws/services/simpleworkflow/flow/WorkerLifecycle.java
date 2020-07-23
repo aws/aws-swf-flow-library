@@ -26,6 +26,8 @@ public interface WorkerLifecycle {
 
     public abstract boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 
+    public abstract boolean gracefulShutdown(long timeout, TimeUnit unit) throws InterruptedException;
+
     public abstract boolean shutdownAndAwaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 
 }

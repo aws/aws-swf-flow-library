@@ -18,6 +18,7 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
@@ -29,13 +30,19 @@ public class WorkflowWorker implements WorkerBase {
 
     private final GenericWorkflowWorker genericWorker;
 
-    private final POJOWorkflowDefinitionFactoryFactory factoryFactory = new POJOWorkflowDefinitionFactoryFactory();
+    private final POJOWorkflowDefinitionFactoryFactory factoryFactory ;
 
     private final Collection<Class<?>> workflowImplementationTypes = new ArrayList<Class<?>>();
 
     public WorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
-        genericWorker = new GenericWorkflowWorker(service, domain, taskListToPoll);
-        genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
+        this(new GenericWorkflowWorker(service, domain, taskListToPoll));
+    }
+
+    public WorkflowWorker(GenericWorkflowWorker genericWorker) {
+        Objects.requireNonNull(genericWorker,"the workflow worker is required");
+        this.genericWorker = genericWorker;
+        this.factoryFactory =  new POJOWorkflowDefinitionFactoryFactory();
+        this.genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
     }
 
     @Override
@@ -77,7 +84,7 @@ public class WorkflowWorker implements WorkerBase {
     public double getMaximumPollRatePerSecond() {
         return genericWorker.getMaximumPollRatePerSecond();
     }
-    
+
     /**
      * Maximum rate of polling and executing decisions (as they are done by the
      * same thread synchronously) by this WorkflowWorker.
@@ -91,7 +98,7 @@ public class WorkflowWorker implements WorkerBase {
     public int getMaximumPollRateIntervalMilliseconds() {
         return genericWorker.getMaximumPollRateIntervalMilliseconds();
     }
-    
+
     /**
      * Time interval used to measure the polling rate. For example if
      * {@link #setMaximumPollRatePerSecond(double)} is 100 and interval is 1000
@@ -174,6 +181,17 @@ public class WorkflowWorker implements WorkerBase {
         genericWorker.setPollThreadCount(threadCount);
     }
 
+
+    @Override
+    public int getExecuteThreadCount() {
+        return genericWorker.getExecuteThreadCount();
+    }
+
+    @Override
+    public void setExecuteThreadCount(int threadCount) {
+        genericWorker.setExecuteThreadCount(threadCount);
+    }
+
     @Override
     public void registerTypesToPoll() {
         genericWorker.registerTypesToPoll();
@@ -200,6 +218,11 @@ public class WorkflowWorker implements WorkerBase {
     }
 
     @Override
+    public boolean gracefulShutdown(long timeout, TimeUnit unit) throws InterruptedException {
+        return genericWorker.gracefulShutdown(timeout, unit);
+    }
+
+    @Override
     public boolean isRunning() {
         return genericWorker.isRunning();
     }
@@ -213,7 +236,7 @@ public class WorkflowWorker implements WorkerBase {
     public void resumePolling() {
         genericWorker.resumePolling();
     }
-    
+
     @Override
     public boolean isPollingSuspended() {
         return genericWorker.isPollingSuspended();
@@ -246,7 +269,7 @@ public class WorkflowWorker implements WorkerBase {
     public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converter, Object[] constructorArgs) throws InstantiationException, IllegalAccessException {
         factoryFactory.addWorkflowImplementationType(workflowImplementationType, converter, constructorArgs, null);
     }
-    
+
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "[genericWorker=" + genericWorker + ", wokflowImplementationTypes="
@@ -265,9 +288,9 @@ public class WorkflowWorker implements WorkerBase {
     public void setDefaultConverter(DataConverter converter) {
         factoryFactory.setDataConverter(converter);
     }
-    
+
     public void addWorkflowImplementationType(Class<?> workflowImplementationType,
-            Map<String, Integer> maximumAllowedComponentImplementationVersions)
+                                              Map<String, Integer> maximumAllowedComponentImplementationVersions)
             throws InstantiationException, IllegalAccessException {
         factoryFactory.addWorkflowImplementationType(workflowImplementationType, maximumAllowedComponentImplementationVersions);
     }
@@ -281,14 +304,14 @@ public class WorkflowWorker implements WorkerBase {
     public boolean isDisableTypeRegistrationOnStart() {
         return genericWorker.isDisableTypeRegistrationOnStart();
     }
-    
+
     public void addWorkflowImplementationType(Class<?> workflowImplementationType, DataConverter converter,
-            Map<String, Integer> maximumAllowedComponentImplementationVersions)
+                                              Map<String, Integer> maximumAllowedComponentImplementationVersions)
             throws InstantiationException, IllegalAccessException {
         factoryFactory.addWorkflowImplementationType(workflowImplementationType, converter,
                 null, maximumAllowedComponentImplementationVersions);
     }
- 
+
     /**
      * @see WorkflowComponentImplementationVersion
      * @param maximumAllowedImplementationVersions
@@ -299,7 +322,7 @@ public class WorkflowWorker implements WorkerBase {
             Map<WorkflowType, Map<String, Integer>> maximumAllowedImplementationVersions) {
         factoryFactory.setMaximumAllowedComponentImplementationVersions(maximumAllowedImplementationVersions);
     }
- 
+
     public Map<WorkflowType, Map<String, Integer>> getMaximumAllowedComponentImplementationVersions() {
         return factoryFactory.getMaximumAllowedComponentImplementationVersions();
     }

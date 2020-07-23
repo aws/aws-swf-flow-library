@@ -16,6 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.spring;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.context.SmartLifecycle;
@@ -28,27 +29,33 @@ import com.amazonaws.services.simpleworkflow.flow.worker.GenericActivityWorker;
 import com.amazonaws.services.simpleworkflow.model.ActivityType;
 
 public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
-    
+
     private final GenericActivityWorker genericWorker;
-    
-    private final POJOActivityImplementationFactory factory = new POJOActivityImplementationFactory(); 
+
+    private final POJOActivityImplementationFactory factory;
 
     private int startPhase;
 
-    private long terminationTimeoutSeconds = 60;
+    protected long terminationTimeoutSeconds = 60;
 
     private boolean disableAutoStartup;
-    
+
     public SpringActivityWorker() {
-        genericWorker = new GenericActivityWorker();
-        genericWorker.setActivityImplementationFactory(factory);
+        this(new GenericActivityWorker());
     }
 
     public SpringActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
-        genericWorker = new GenericActivityWorker(service, domain, taskListToPoll);
-        genericWorker.setActivityImplementationFactory(factory);
+        this(new GenericActivityWorker(service, domain, taskListToPoll));
     }
-    
+
+    public SpringActivityWorker(GenericActivityWorker genericWorker) {
+        Objects.requireNonNull(genericWorker,"the activity worker is required");
+
+        this.genericWorker = genericWorker;
+        this.factory =  new POJOActivityImplementationFactory();
+        this.genericWorker.setActivityImplementationFactory(factory);
+    }
+
     public AmazonSimpleWorkflow getService() {
         return genericWorker.getService();
     }
@@ -56,39 +63,39 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public void setService(AmazonSimpleWorkflow service) {
         genericWorker.setService(service);
     }
-    
+
     public String getDomain() {
         return genericWorker.getDomain();
     }
-    
+
     public void setDomain(String domain) {
         genericWorker.setDomain(domain);
     }
-    
+
     public boolean isRegisterDomain() {
         return genericWorker.isRegisterDomain();
     }
-    
+
     public void setRegisterDomain(boolean registerDomain) {
         genericWorker.setRegisterDomain(registerDomain);
     }
-    
+
     public long getDomainRetentionPeriodInDays() {
         return genericWorker.getDomainRetentionPeriodInDays();
     }
-    
+
     public void setDomainRetentionPeriodInDays(long domainRetentionPeriodInDays) {
         genericWorker.setDomainRetentionPeriodInDays(domainRetentionPeriodInDays);
     }
-    
+
     public String getTaskListToPoll() {
         return genericWorker.getTaskListToPoll();
     }
-    
+
     public void setTaskListToPoll(String taskListToPoll) {
         genericWorker.setTaskListToPoll(taskListToPoll);
     }
-    
+
     public DataConverter getDataConverter() {
         return factory.getDataConverter();
     }
@@ -100,7 +107,7 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public double getMaximumPollRatePerSecond() {
         return genericWorker.getMaximumPollRatePerSecond();
     }
-    
+
     public void setMaximumPollRatePerSecond(double maximumPollRatePerSecond) {
         genericWorker.setMaximumPollRatePerSecond(maximumPollRatePerSecond);
     }
@@ -108,7 +115,7 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public int getMaximumPollRateIntervalMilliseconds() {
         return genericWorker.getMaximumPollRateIntervalMilliseconds();
     }
-    
+
     public void setMaximumPollRateIntervalMilliseconds(int maximumPollRateIntervalMilliseconds) {
         genericWorker.setMaximumPollRateIntervalMilliseconds(maximumPollRateIntervalMilliseconds);
     }
@@ -116,11 +123,11 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public String getIdentity() {
         return genericWorker.getIdentity();
     }
-    
+
     public void setIdentity(String identity) {
         genericWorker.setIdentity(identity);
     }
-    
+
     public UncaughtExceptionHandler getUncaughtExceptionHandler() {
         return genericWorker.getUncaughtExceptionHandler();
     }
@@ -128,11 +135,11 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public void setUncaughtExceptionHandler(UncaughtExceptionHandler uncaughtExceptionHandler) {
         genericWorker.setUncaughtExceptionHandler(uncaughtExceptionHandler);
     }
-    
+
     public long getPollBackoffInitialInterval() {
         return genericWorker.getPollBackoffInitialInterval();
     }
-    
+
     public void setPollBackoffInitialInterval(long backoffInitialInterval) {
         genericWorker.setPollBackoffInitialInterval(backoffInitialInterval);
     }
@@ -148,11 +155,11 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public double getPollBackoffCoefficient() {
         return genericWorker.getPollBackoffCoefficient();
     }
-    
+
     public void setPollBackoffCoefficient(double backoffCoefficient) {
         genericWorker.setPollBackoffCoefficient(backoffCoefficient);
     }
-    
+
     public int getPollThreadCount() {
         return genericWorker.getPollThreadCount();
     }
@@ -160,23 +167,41 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public void setPollThreadCount(int threadCount) {
         genericWorker.setPollThreadCount(threadCount);
     }
-    
+
+    @Override
+    public int getExecuteThreadCount() {
+        return genericWorker.getExecuteThreadCount();
+    }
+
+    @Override
+    public void setExecuteThreadCount(int threadCount) {
+        genericWorker.setExecuteThreadCount(threadCount);
+    }
+
+    /**
+     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #getExecuteThreadCount()} instead.
+     */
+    @Deprecated
     public int getTaskExecutorThreadPoolSize() {
         return genericWorker.getTaskExecutorThreadPoolSize();
     }
 
+    /**
+     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #setExecuteThreadCount(int)} instead.
+     */
+    @Deprecated
     public void setTaskExecutorThreadPoolSize(int taskExecutorThreadPoolSize) {
         genericWorker.setTaskExecutorThreadPoolSize(taskExecutorThreadPoolSize);
     }
-    
+
     public boolean isDisableServiceShutdownOnStop() {
         return genericWorker.isDisableServiceShutdownOnStop();
     }
-    
+
     public void setDisableServiceShutdownOnStop(boolean disableServiceShutdownOnStop) {
         genericWorker.setDisableServiceShutdownOnStop(disableServiceShutdownOnStop);
     }
-    
+
     @Override
     public void suspendPolling() {
         genericWorker.suspendPolling();
@@ -186,7 +211,7 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public void resumePolling() {
         genericWorker.resumePolling();
     }
-    
+
     @Override
     public boolean isPollingSuspended() {
         return genericWorker.isPollingSuspended();
@@ -201,11 +226,11 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public void start() {
         genericWorker.start();
     }
-    
+
     public void stopNow() {
         genericWorker.shutdownNow();
     }
-    
+
     @Override
     public void shutdown() {
         genericWorker.shutdown();
@@ -228,32 +253,37 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return genericWorker.awaitTermination(timeout, unit);
     }
-    
+
+    @Override
+    public boolean gracefulShutdown(long timeout, TimeUnit unit) throws InterruptedException {
+        return genericWorker.gracefulShutdown(timeout, unit);
+    }
+
     @Override
     public void stop() {
-        shutdown();
         try {
-            awaitTermination(terminationTimeoutSeconds, TimeUnit.SECONDS);
+            gracefulShutdown(terminationTimeoutSeconds, TimeUnit.SECONDS);
+            shutdownNow();
         }
         catch (InterruptedException e) {
         }
     }
-    
+
     public boolean isRunning() {
         return genericWorker.isRunning();
     }
-    
+
     public void setActivitiesImplementations(Iterable<Object> activitiesImplementations)
             throws InstantiationException, IllegalAccessException, SecurityException, NoSuchMethodException {
         for (Object activitiesImplementation : activitiesImplementations) {
             addActivitiesImplementation(activitiesImplementation);
         }
     }
-    
+
     public Iterable<Object> getActivitiesImplementations() {
         return factory.getActivitiesImplementations();
     }
-    
+
     public List<ActivityType> addActivitiesImplementation(Object activitiesImplementation)
             throws InstantiationException, IllegalAccessException, SecurityException, NoSuchMethodException {
         return factory.addActivitiesImplementation(activitiesImplementation);
@@ -275,7 +305,7 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public void setPhase(int startPhase) {
         this.startPhase = startPhase;
     }
-    
+
     @Override
     public boolean isAutoStartup() {
         return !disableAutoStartup;
@@ -296,7 +326,7 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
     public void setDisableAutoStartup(boolean disableAutoStartup) {
         this.disableAutoStartup = disableAutoStartup;
     }
-    
+
     @Override
     public void setDisableTypeRegistrationOnStart(boolean disableTypeRegistrationOnStart) {
         genericWorker.setDisableTypeRegistrationOnStart(disableTypeRegistrationOnStart);

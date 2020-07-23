@@ -16,7 +16,9 @@ package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.management.ManagementFactory;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +34,7 @@ import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.model.DomainAlreadyExistsException;
 import com.amazonaws.services.simpleworkflow.model.RegisterDomainRequest;
 
-public abstract class GenericWorker implements WorkerBase {
+public abstract class GenericWorker<T> implements WorkerBase {
 
     class ExecutorThreadFactory implements ThreadFactory {
 
@@ -53,48 +55,73 @@ public abstract class GenericWorker implements WorkerBase {
         }
     }
 
-    private class PollServiceTask implements Runnable {
+    private class PollingTask implements Runnable {
+        private final TaskPoller<T> poller;
 
-        private final TaskPoller poller;
-
-        PollServiceTask(TaskPoller poller) {
+        PollingTask(final TaskPoller poller) {
             this.poller = poller;
         }
 
         @Override
         public void run() {
             try {
-                if (log.isDebugEnabled()) {
+                while(true) {
                     log.debug("poll task begin");
+                    if (pollingExecutor.isShutdown() || workerExecutor.isShutdown()) {
+                        return;
+                    }
+                    final int availableWorkers = workerExecutor.getMaximumPoolSize() - workerExecutor.getActiveCount();
+                    if (availableWorkers < 1) {
+                        log.debug("no available workers");
+                        return;
+                    }
+                    pollBackoffThrottler.throttle();
+                    if (pollingExecutor.isShutdown() || workerExecutor.isShutdown()) {
+                        return;
+                    }
+                    if (pollRateThrottler != null) {
+                        pollRateThrottler.throttle();
+                    }
+                    if (pollingExecutor.isShutdown() || workerExecutor.isShutdown()) {
+                        return;
+                    }
+                    T task = poller.poll();
+                    if (task == null) {
+                        log.debug("no work returned");
+                        return;
+                    }
+                    workerExecutor.execute(new ExecuteTask(poller, task));
+                    log.debug("poll task end");
                 }
-
-                if (pollExecutor.isTerminating()) {
-                    return;
-                }
-                pollBackoffThrottler.throttle();
-                if (pollExecutor.isTerminating()) {
-                    return;
-                }
-                if (pollRateThrottler != null) {
-                    pollRateThrottler.throttle();
-                }
-
-                if (pollExecutor.isTerminating()) {
-                    return;
-                }
-                poller.pollAndProcessSingleTask();
-                pollBackoffThrottler.success();
-            }
-            catch (Throwable e) {
+            } catch (final Throwable e) {
                 pollBackoffThrottler.failure();
                 if (!(e.getCause() instanceof InterruptedException)) {
                     uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), e);
                 }
             }
-            finally {
-                // Resubmit itself back to pollExecutor
-                if (!pollExecutor.isShutdown()) {
-                    pollExecutor.execute(this);
+        }
+    }
+
+    private class ExecuteTask implements Runnable {
+        private final TaskPoller<T> poller;
+        private final T task;
+
+        ExecuteTask(final TaskPoller poller, final T task) {
+            this.poller = poller;
+            this.task = task;
+        }
+
+        @Override
+        public void run() {
+            try {
+                log.debug("execute task begin");
+                poller.execute(task);
+                pollBackoffThrottler.success();
+                log.debug("execute task end");
+            } catch (Throwable e) {
+                pollBackoffThrottler.failure();
+                if (!(e.getCause() instanceof InterruptedException)) {
+                    uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), e);
                 }
             }
         }
@@ -124,7 +151,7 @@ public abstract class GenericWorker implements WorkerBase {
 
     private long pollBackoffMaximumInterval = 60000;
 
-    private boolean disableTypeRegitrationOnStart;
+    private boolean disableTypeRegistrationOnStart;
 
     private boolean disableServiceShutdownOnStop;
 
@@ -134,11 +161,15 @@ public abstract class GenericWorker implements WorkerBase {
 
     private final AtomicBoolean shutdownRequested = new AtomicBoolean();
 
-    private ThreadPoolExecutor pollExecutor;
+    private ScheduledExecutorService pollingExecutor;
+
+    private ThreadPoolExecutor workerExecutor;
 
     private String identity = ManagementFactory.getRuntimeMXBean().getName();
 
     private int pollThreadCount = 1;
+
+    private int executeThreadCount = 1;
 
     private BackoffThrottler pollBackoffThrottler;
 
@@ -191,7 +222,7 @@ public abstract class GenericWorker implements WorkerBase {
 
     /**
      * Should domain be registered on startup. Default is <code>false</code>.
-     * When enabled {@link #setDomainRetentionPeriodInDays(Long)} property is
+     * When enabled {@link #setDomainRetentionPeriodInDays(long)} property is
      * required.
      */
     @Override
@@ -299,7 +330,7 @@ public abstract class GenericWorker implements WorkerBase {
      * configured with before shutting down internal thread pools. Otherwise
      * threads that are waiting on a poll request might block shutdown for the
      * duration of a poll. This flag allows disabling this behavior.
-     * 
+     *
      * @param disableServiceShutdownOnStop
      *            <code>true</code> means do not call
      *            {@link AmazonSimpleWorkflow#shutdown()}
@@ -331,16 +362,38 @@ public abstract class GenericWorker implements WorkerBase {
     public void setPollThreadCount(int threadCount) {
         checkStarted();
         this.pollThreadCount = threadCount;
+        /*
+            It is actually not very useful to have poll thread count
+            larger than execute thread count. Since execute thread count
+            is a new concept introduced since Flow-3.7, to make the
+            major version upgrade more friendly, try to bring the
+            execute thread count to match poll thread count if client
+            does not the set execute thread count explicitly.
+         */
+        if (this.executeThreadCount < threadCount) {
+            this.executeThreadCount = threadCount;
+        }
+    }
+
+    @Override
+    public int getExecuteThreadCount() {
+        return executeThreadCount;
+    }
+
+    @Override
+    public void setExecuteThreadCount(int threadCount) {
+        checkStarted();
+        this.executeThreadCount = threadCount;
     }
 
     @Override
     public void setDisableTypeRegistrationOnStart(boolean disableTypeRegistrationOnStart) {
-        this.disableTypeRegitrationOnStart = disableTypeRegistrationOnStart;
+        this.disableTypeRegistrationOnStart = disableTypeRegistrationOnStart;
     }
 
     @Override
     public boolean isDisableTypeRegistrationOnStart() {
-        return disableTypeRegitrationOnStart;
+        return disableTypeRegistrationOnStart;
     }
 
     @Override
@@ -357,13 +410,13 @@ public abstract class GenericWorker implements WorkerBase {
         checkRequiredProperty(service, "service");
         checkRequiredProperty(domain, "domain");
         checkRequiredProperty(taskListToPoll, "taskListToPoll");
-        checkRequredProperties();
+        checkRequiredProperties();
 
         if (registerDomain) {
             registerDomain();
         }
 
-        if (!disableTypeRegitrationOnStart) {
+        if (!disableTypeRegistrationOnStart) {
             registerTypesToPoll();
         }
 
@@ -371,33 +424,33 @@ public abstract class GenericWorker implements WorkerBase {
             pollRateThrottler = new Throttler("pollRateThrottler " + taskListToPoll, maximumPollRatePerSecond,
                     maximumPollRateIntervalMilliseconds);
         }
-
-        pollExecutor = new ThreadPoolExecutor(pollThreadCount, pollThreadCount, 1, TimeUnit.MINUTES,
-                new LinkedBlockingQueue<Runnable>(pollThreadCount));
-        ExecutorThreadFactory pollExecutorThreadFactory = getExecutorThreadFactory();
-        pollExecutor.setThreadFactory(pollExecutorThreadFactory);
-
-        pollBackoffThrottler = new BackoffThrottler(pollBackoffInitialInterval, pollBackoffMaximumInterval,
-                pollBackoffCoefficient);
         poller = createPoller();
         if (suspended) {
             poller.suspend();
         }
+        pollBackoffThrottler = new BackoffThrottler(pollBackoffInitialInterval, pollBackoffMaximumInterval,
+                pollBackoffCoefficient);
+
+        workerExecutor = new ThreadPoolExecutor(executeThreadCount, executeThreadCount, 1, TimeUnit.MINUTES,
+                new SynchronousQueue<>(), new BlockCallerPolicy());
+        ExecutorThreadFactory pollExecutorThreadFactory = getExecutorThreadFactory("Worker");
+        workerExecutor.setThreadFactory(pollExecutorThreadFactory);
+
+        pollingExecutor = new ScheduledThreadPoolExecutor(pollThreadCount, getExecutorThreadFactory("Poller"));
         for (int i = 0; i < pollThreadCount; i++) {
-            pollExecutor.execute(new PollServiceTask(poller));
+            pollingExecutor.scheduleWithFixedDelay(new PollingTask(poller), 0, 1, TimeUnit.SECONDS);
         }
     }
 
-    private ExecutorThreadFactory getExecutorThreadFactory() {
-        ExecutorThreadFactory pollExecutorThreadFactory = new ExecutorThreadFactory(getPollThreadNamePrefix());
-        return pollExecutorThreadFactory;
+    private ExecutorThreadFactory getExecutorThreadFactory(final String type) {
+        return new ExecutorThreadFactory(getPollThreadNamePrefix() + " " + type);
     }
 
     protected abstract String getPollThreadNamePrefix();
 
-    protected abstract TaskPoller createPoller();
+    protected abstract TaskPoller<T> createPoller();
 
-    protected abstract void checkRequredProperties();
+    protected abstract void checkRequiredProperties();
 
     private void registerDomain() {
         if (domainRetentionPeriodInDays == FlowConstants.NONE) {
@@ -444,8 +497,8 @@ public abstract class GenericWorker implements WorkerBase {
         if (!disableServiceShutdownOnStop) {
             service.shutdown();
         }
-        pollExecutor.shutdown();
-        poller.shutdown();
+        pollingExecutor.shutdown();
+        workerExecutor.shutdown();
     }
 
     @Override
@@ -462,40 +515,54 @@ public abstract class GenericWorker implements WorkerBase {
         if (!disableServiceShutdownOnStop) {
             service.shutdown();
         }
-        pollExecutor.shutdownNow();
-        poller.shutdownNow();
+        pollingExecutor.shutdownNow();
+        workerExecutor.shutdownNow();
     }
 
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         long start = System.currentTimeMillis();
-        boolean terminated = pollExecutor.awaitTermination(timeout, unit);
+        boolean terminated = pollingExecutor.awaitTermination(timeout, unit);
         long elapsed = System.currentTimeMillis() - start;
         long left = TimeUnit.MILLISECONDS.convert(timeout, unit) - elapsed;
-        return poller.awaitTermination(left, TimeUnit.MILLISECONDS) && terminated;
+        terminated &= workerExecutor.awaitTermination(left, TimeUnit.MILLISECONDS);
+        return terminated;
     }
 
+    /**
+     * The graceful shutdown will wait for existing polls and tasks to complete
+     * unless the timeout is not enough. It does not shutdown the SWF client.
+     */
+    @Override
+    public boolean gracefulShutdown(long timeout, TimeUnit unit) throws InterruptedException {
+        setDisableServiceShutdownOnStop(true);
+        return shutdownAndAwaitTermination(timeout, unit);
+    }
+
+    /**
+     * This method will also shutdown SWF client unless you {@link #setDisableServiceShutdownOnStop(boolean)} to <code>true</code>.
+     */
     @Override
     public boolean shutdownAndAwaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        long left = TimeUnit.MILLISECONDS.convert(timeout, unit);
+        long timeoutMilliseconds = TimeUnit.MILLISECONDS.convert(timeout, unit);
+        long start = System.currentTimeMillis();
         if (shutdownRequested.compareAndSet(false, true)) {
             if (!isStarted()) {
                 return true;
             }
-            long start = System.currentTimeMillis();
+
             if (!disableServiceShutdownOnStop) {
                 service.shutdown();
             }
-            pollExecutor.shutdownNow();
-            try {
-                pollExecutor.awaitTermination(timeout, unit);
-            }
-            finally {
-                poller.shutdown();
-            }
+            pollingExecutor.shutdown();
+            pollingExecutor.awaitTermination(timeout, unit);
+            workerExecutor.shutdown();
             long elapsed = System.currentTimeMillis() - start;
-            left = left - elapsed;
+            long left = timeoutMilliseconds - elapsed;
+            workerExecutor.awaitTermination(left, unit);
         }
+        long elapsed = System.currentTimeMillis() - start;
+        long left = timeoutMilliseconds - elapsed;
         return awaitTermination(left, TimeUnit.MILLISECONDS);
     }
 
@@ -509,7 +576,7 @@ public abstract class GenericWorker implements WorkerBase {
 
     @Override
     public boolean isRunning() {
-        return isStarted() && !pollExecutor.isTerminated();
+        return isStarted() && !pollingExecutor.isTerminated() && !workerExecutor.isTerminated();
     }
 
     @Override
