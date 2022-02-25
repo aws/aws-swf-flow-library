@@ -56,9 +56,17 @@ public class TestGenericWorkflowClient implements GenericWorkflowClient {
 
         private final String runId;
 
-        private StartChildWorkflowReplyImpl(Settable<String> result, String runId) {
+        private final String workflowId;
+
+        private StartChildWorkflowReplyImpl(Settable<String> result, String workflowId, String runId) {
             this.result = result;
+            this.workflowId = workflowId;
             this.runId = runId;
+        }
+
+        @Override
+        public String getWorkflowId() {
+            return workflowId;
         }
 
         @Override
@@ -275,7 +283,7 @@ public class TestGenericWorkflowClient implements GenericWorkflowClient {
             throw failure;
         }
         finally {
-            reply.set(new StartChildWorkflowReplyImpl(result, runId));
+            reply.set(new StartChildWorkflowReplyImpl(result, workflowId, runId));
         }
     }
 

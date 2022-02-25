@@ -14,21 +14,25 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import java.lang.management.ManagementFactory;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
+import com.amazonaws.services.simpleworkflow.flow.ChildWorkflowIdHandler;
+import com.amazonaws.services.simpleworkflow.flow.DefaultChildWorkflowIdHandler;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowTypeRegistrationOptions;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactory;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactoryFactory;
+import com.amazonaws.services.simpleworkflow.flow.retry.ThrottlingRetrier;
 import com.amazonaws.services.simpleworkflow.model.RegisterWorkflowTypeRequest;
 import com.amazonaws.services.simpleworkflow.model.TaskList;
 import com.amazonaws.services.simpleworkflow.model.TypeAlreadyExistsException;
 import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 public class GenericWorkflowWorker extends GenericWorker<DecisionTaskPoller.DecisionTaskIterator> {
 
@@ -36,46 +40,33 @@ public class GenericWorkflowWorker extends GenericWorker<DecisionTaskPoller.Deci
 
     private static final String THREAD_NAME_PREFIX = "SWF Decider ";
 
+    @Getter
+    @Setter
     private WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory;
 
+    @Setter
+    private ChildWorkflowIdHandler childWorkflowIdHandler = new DefaultChildWorkflowIdHandler();
+
     public GenericWorkflowWorker() {
-        setIdentity(ManagementFactory.getRuntimeMXBean().getName());
+        super();
     }
 
     public GenericWorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
-        this();
-        setService(service);
-        setDomain(domain);
-        setTaskListToPoll(taskListToPoll);
+        super(service, domain, taskListToPoll, null);
     }
 
-    public WorkflowDefinitionFactoryFactory getWorkflowDefinitionFactoryFactory() {
-        return workflowDefinitionFactoryFactory;
-    }
-
-    public void setWorkflowDefinitionFactoryFactory(WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory) {
-        this.workflowDefinitionFactoryFactory = workflowDefinitionFactoryFactory;
+    public GenericWorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+        super(service, domain, taskListToPoll, config);
     }
 
     protected DecisionTaskPoller createWorkflowPoller() {
-        DecisionTaskPoller poller = new DecisionTaskPoller();
-        return poller;
+        return new DecisionTaskPoller();
     }
 
     @Override
-    protected void checkRequiredProperties() {
-        checkRequiredProperty(workflowDefinitionFactoryFactory, "workflowDefinitionFactoryFactory");
-    }
-
-    @Override
-    protected String getPollThreadNamePrefix() {
-        return THREAD_NAME_PREFIX + getTaskListToPoll() + " ";
-    }
-
-    @Override
-    protected TaskPoller createPoller() {
+    protected TaskPoller<DecisionTaskPoller.DecisionTaskIterator> createPoller() {
         DecisionTaskPoller result = new DecisionTaskPoller();
-        result.setDecisionTaskHandler(new AsyncDecisionTaskHandler(workflowDefinitionFactoryFactory));
+        result.setDecisionTaskHandler(new AsyncDecisionTaskHandler(workflowDefinitionFactoryFactory, childWorkflowIdHandler));
         result.setDomain(getDomain());
         result.setIdentity(getIdentity());
         result.setService(getService());
@@ -88,21 +79,20 @@ public class GenericWorkflowWorker extends GenericWorker<DecisionTaskPoller.Deci
         registerWorkflowTypes(service, domain, getTaskListToPoll(), workflowDefinitionFactoryFactory);
     }
 
-    @Override
-    public String toString() {
-        return this.getClass().getSimpleName() + "[super=" + super.toString() + ", workflowDefinitionFactoryFactory="
-                + workflowDefinitionFactoryFactory + "]";
+    public static void registerWorkflowTypes(AmazonSimpleWorkflow service, String domain, String defaultTaskList,
+                                             WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory) {
+        registerWorkflowTypes(service, domain, defaultTaskList, workflowDefinitionFactoryFactory, null);
     }
 
     public static void registerWorkflowTypes(AmazonSimpleWorkflow service, String domain, String defaultTaskList,
-                                             WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory) {
+                                             WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, SimpleWorkflowClientConfig config) {
         for (WorkflowType typeToRegister : workflowDefinitionFactoryFactory.getWorkflowTypesToRegister()) {
             WorkflowDefinitionFactory workflowDefinitionFactory = workflowDefinitionFactoryFactory.getWorkflowDefinitionFactory(typeToRegister);
             WorkflowTypeRegistrationOptions registrationOptions = workflowDefinitionFactory.getWorkflowRegistrationOptions();
             if (registrationOptions != null) {
                 WorkflowType workflowType = workflowDefinitionFactory.getWorkflowType();
                 try {
-                    registerWorkflowType(service, domain, workflowType, registrationOptions, defaultTaskList);
+                    registerWorkflowType(service, domain, workflowType, registrationOptions, defaultTaskList, config);
                 }
                 catch (TypeAlreadyExistsException ex) {
                     if (log.isTraceEnabled()) {
@@ -115,6 +105,19 @@ public class GenericWorkflowWorker extends GenericWorker<DecisionTaskPoller.Deci
 
     public static void registerWorkflowType(AmazonSimpleWorkflow service, String domain, WorkflowType workflowType,
                                             WorkflowTypeRegistrationOptions registrationOptions, String defaultTaskList) {
+        registerWorkflowType(service, domain, workflowType, registrationOptions, defaultTaskList, null);
+    }
+
+    public static void registerWorkflowType(AmazonSimpleWorkflow service, String domain, WorkflowType workflowType,
+                                            WorkflowTypeRegistrationOptions registrationOptions, String defaultTaskList, SimpleWorkflowClientConfig config) {
+        RegisterWorkflowTypeRequest registerWorkflow = buildRegisterWorkflowTypeRequest(domain, workflowType, registrationOptions, defaultTaskList);
+
+        RequestTimeoutHelper.overrideControlPlaneRequestTimeout(registerWorkflow, config);
+        registerWorkflowTypeWithRetry(service, registerWorkflow);
+    }
+
+    private static RegisterWorkflowTypeRequest buildRegisterWorkflowTypeRequest(String domain, WorkflowType workflowType,
+                                                                                WorkflowTypeRegistrationOptions registrationOptions, String defaultTaskList) {
         RegisterWorkflowTypeRequest registerWorkflow = new RegisterWorkflowTypeRequest();
 
         registerWorkflow.setDomain(domain);
@@ -141,7 +144,28 @@ public class GenericWorkflowWorker extends GenericWorker<DecisionTaskPoller.Deci
             registerWorkflow.setDescription(description);
         }
 
-        service.registerWorkflowType(registerWorkflow);
+        return registerWorkflow;
     }
 
+    private static void registerWorkflowTypeWithRetry(AmazonSimpleWorkflow service,
+                                                      RegisterWorkflowTypeRequest registerWorkflowTypeRequest) {
+        ThrottlingRetrier retrier = new ThrottlingRetrier(getRegisterTypeThrottledRetryParameters());
+        retrier.retry(() -> service.registerWorkflowType(registerWorkflowTypeRequest));
+    }
+
+    @Override
+    protected void checkRequiredProperties() {
+        checkRequiredProperty(workflowDefinitionFactoryFactory, "workflowDefinitionFactoryFactory");
+    }
+
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + "[super=" + super.toString() + ", workflowDefinitionFactoryFactory="
+                + workflowDefinitionFactoryFactory + "]";
+    }
+
+    @Override
+    protected String getPollThreadNamePrefix() {
+        return THREAD_NAME_PREFIX + getTaskListToPoll() + " ";
+    }
 }

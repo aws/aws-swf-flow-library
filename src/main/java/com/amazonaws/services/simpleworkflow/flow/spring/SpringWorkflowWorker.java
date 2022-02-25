@@ -14,11 +14,13 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.spring;
 
+import com.amazonaws.services.simpleworkflow.flow.ChildWorkflowIdHandler;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import org.springframework.context.SmartLifecycle;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
@@ -53,11 +55,19 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
         this(new GenericWorkflowWorker(service, domain, taskListToPoll));
     }
 
+    public SpringWorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+        this(new GenericWorkflowWorker(service, domain, taskListToPoll, config));
+    }
+
     public SpringWorkflowWorker(GenericWorkflowWorker genericWorker) {
         Objects.requireNonNull(genericWorker,"the workflow worker is required");
         this.genericWorker = genericWorker;
         this.factoryFactory  = new SpringWorkflowDefinitionFactoryFactory();
         this.genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
+    }
+
+    public SimpleWorkflowClientConfig getClientConfig() {
+        return genericWorker.getClientConfig();
     }
 
     public AmazonSimpleWorkflow getService() {
@@ -183,6 +193,16 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
     }
 
     @Override
+    public boolean isAllowCoreThreadTimeOut() {
+        return genericWorker.isAllowCoreThreadTimeOut();
+    }
+
+    @Override
+    public void setAllowCoreThreadTimeOut(boolean allowCoreThreadTimeOut) {
+        genericWorker.setAllowCoreThreadTimeOut(allowCoreThreadTimeOut);
+    }
+
+    @Override
     public void setDisableTypeRegistrationOnStart(boolean disableTypeRegistrationOnStart) {
         genericWorker.setDisableTypeRegistrationOnStart(disableTypeRegistrationOnStart);
     }
@@ -220,6 +240,10 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
     @Override
     public void setExecuteThreadCount(int threadCount) {
         genericWorker.setExecuteThreadCount(threadCount);
+    }
+
+    public void setChildWorkflowIdHandler(ChildWorkflowIdHandler childWorkflowIdHandler) {
+        genericWorker.setChildWorkflowIdHandler(childWorkflowIdHandler);
     }
 
     @Override

@@ -22,13 +22,14 @@ import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionDe
 
 class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
 
-    private StartChildWorkflowExecutionDecisionAttributes startAttributes;
+    private final StartChildWorkflowExecutionDecisionAttributes startAttributes;
 
-    private String runId;
+    private String workflowId;
 
     public ChildWorkflowDecisionStateMachine(DecisionId id, StartChildWorkflowExecutionDecisionAttributes startAttributes) {
         super(id);
         this.startAttributes = startAttributes;
+        this.workflowId = startAttributes.getWorkflowId();
     }
     
     /**
@@ -37,6 +38,7 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
     ChildWorkflowDecisionStateMachine(DecisionId id, StartChildWorkflowExecutionDecisionAttributes startAttributes, DecisionState state) {
         super(id, state);
         this.startAttributes = startAttributes;
+        this.workflowId = startAttributes.getWorkflowId();
     }
 
     @Override
@@ -60,6 +62,26 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
         default:
             super.handleDecisionTaskStartedEvent();
         }
+    }
+
+    @Override
+    public void handleInitiatedEvent(HistoryEvent event) {
+        String actualWorkflowId = event.getStartChildWorkflowExecutionInitiatedEventAttributes().getWorkflowId();
+        if (!workflowId.equals(actualWorkflowId)) {
+            workflowId = actualWorkflowId;
+            id = new DecisionId(DecisionTarget.EXTERNAL_WORKFLOW, actualWorkflowId);
+        }
+        super.handleInitiatedEvent(event);
+    }
+
+    @Override
+    public void handleInitiationFailedEvent(HistoryEvent event) {
+        String actualWorkflowId = event.getStartChildWorkflowExecutionFailedEventAttributes().getWorkflowId();
+        if (!workflowId.equals(actualWorkflowId)) {
+            workflowId = actualWorkflowId;
+            id = new DecisionId(DecisionTarget.EXTERNAL_WORKFLOW, actualWorkflowId);
+        }
+        super.handleInitiationFailedEvent(event);
     }
 
     @Override
@@ -132,8 +154,7 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
     
     private Decision createRequestCancelExternalWorkflowExecutionDecision() {
         RequestCancelExternalWorkflowExecutionDecisionAttributes tryCancel = new RequestCancelExternalWorkflowExecutionDecisionAttributes();
-        tryCancel.setWorkflowId(startAttributes.getWorkflowId());
-        tryCancel.setRunId(runId);
+        tryCancel.setWorkflowId(workflowId);
         Decision decision = new Decision();
         decision.setRequestCancelExternalWorkflowExecutionDecisionAttributes(tryCancel);
         decision.setDecisionType(DecisionType.RequestCancelExternalWorkflowExecution.toString());

@@ -19,17 +19,18 @@ import java.io.StringWriter;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
+import com.amazonaws.services.simpleworkflow.flow.common.FlowValueConstraint;
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
+import com.amazonaws.services.simpleworkflow.flow.retry.SynchronousRetrier;
 import com.amazonaws.services.simpleworkflow.model.ActivityType;
 import com.amazonaws.services.simpleworkflow.model.PollForActivityTaskRequest;
 import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCanceledRequest;
@@ -53,11 +54,11 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
 
     private static final Log log = LogFactory.getLog(ActivityTaskPoller.class);
 
+    private SuspendableSemaphore pollSemaphore;
+
     private UncaughtExceptionHandler uncaughtExceptionHandler;
 
     private static final long SECOND = 1000;
-
-    private static final int MAX_DETAIL_LENGTH = 32768;
 
     private AmazonSimpleWorkflow service;
 
@@ -77,6 +78,8 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
 
     private final Condition suspentionCondition = lock.newCondition();
 
+    private SimpleWorkflowClientConfig config;
+
     public ActivityTaskPoller() {
         identity = ManagementFactory.getRuntimeMXBean().getName();
         int length = Math.min(identity.length(), GenericWorker.MAX_IDENTITY_LENGTH);
@@ -85,11 +88,23 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
 
     public ActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String pollTaskList,
                               ActivityImplementationFactory activityImplementationFactory) {
+        this(service, domain, pollTaskList, activityImplementationFactory, null);
+    }
+
+    public ActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String pollTaskList,
+                              ActivityImplementationFactory activityImplementationFactory, SimpleWorkflowClientConfig config) {
         this();
         this.service = service;
         this.domain = domain;
         this.taskListToPoll = pollTaskList;
         this.activityImplementationFactory = activityImplementationFactory;
+        this.config = config;
+    }
+
+    public ActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String pollTaskList,
+                              ActivityImplementationFactory activityImplementationFactory, int executeThreadCount, SimpleWorkflowClientConfig config) {
+        this(service, domain, pollTaskList, activityImplementationFactory, config);
+        pollSemaphore = new SuspendableSemaphore(executeThreadCount);
     }
 
     public AmazonSimpleWorkflow getService() {
@@ -167,9 +182,12 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
         pollRequest.setDomain(domain);
         pollRequest.setIdentity(identity);
         pollRequest.setTaskList(new TaskList().withName(taskListToPoll));
+
         if (log.isDebugEnabled()) {
             log.debug("poll request begin: " + pollRequest);
         }
+
+        RequestTimeoutHelper.overridePollRequestTimeout(pollRequest, config);
         ActivityTask result = service.pollForActivityTask(pollRequest);
         if (result == null || result.getTaskToken() == null) {
             if (log.isDebugEnabled()) {
@@ -187,7 +205,9 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
     public void execute(ActivityTask task) throws Exception {
         String output = null;
         ActivityType activityType = task.getActivityType();
-        ActivityExecutionContext context = new ActivityExecutionContextImpl(service, domain, task);
+
+        ActivityExecutionContext context = new ActivityExecutionContextImpl(service, domain, task, config);
+
         ActivityTypeExecutionOptions executionOptions = null;
         try {
             ActivityImplementation activityImplementation = activityImplementationFactory.getActivityImplementation(activityType);
@@ -233,12 +253,12 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
             String details = sw.toString();
-            if (details.length() > MAX_DETAIL_LENGTH) {
+            if (details.length() > FlowValueConstraint.FAILURE_DETAILS.getMaxSize()) {
                 log.warn("Length of details is over maximum input length of 32768. Actual details: " + details +
                         "when processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
                         + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType + ", activityInstanceId="
                         + task.getActivityId());
-                details = details.substring(0, MAX_DETAIL_LENGTH);
+                details = WorkflowExecutionUtils.truncateDetails(details);
             }
             respondActivityTaskFailedWithRetry(task.getTaskToken(), reason, details, executionOptions);
             return;
@@ -294,6 +314,11 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
         }
     }
 
+    @Override
+    public SuspendableSemaphore getPollingSemaphore() {
+        return pollSemaphore;
+    }
+
     protected void checkRequiredProperty(Object value, String name) {
         if (value == null) {
             throw new IllegalStateException("required property " + name + " is not set");
@@ -305,6 +330,7 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
         failedResponse.setTaskToken(taskToken);
         failedResponse.setReason(WorkflowExecutionUtils.truncateReason(reason));
         failedResponse.setDetails(details);
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(failedResponse, config);
         service.respondActivityTaskFailed(failedResponse);
     }
 
@@ -348,6 +374,7 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
         RespondActivityTaskCanceledRequest canceledResponse = new RespondActivityTaskCanceledRequest();
         canceledResponse.setTaskToken(taskToken);
         canceledResponse.setDetails(details);
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(canceledResponse, config);
         service.respondActivityTaskCanceled(canceledResponse);
     }
 
@@ -376,6 +403,7 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
         RespondActivityTaskCompletedRequest completedResponse = new RespondActivityTaskCompletedRequest();
         completedResponse.setTaskToken(taskToken);
         completedResponse.setResult(output);
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(completedResponse, config);
         service.respondActivityTaskCompleted(completedResponse);
     }
 

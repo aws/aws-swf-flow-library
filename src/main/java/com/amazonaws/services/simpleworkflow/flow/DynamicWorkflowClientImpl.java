@@ -37,10 +37,14 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
     protected DataConverter dataConverter;
 
     protected WorkflowExecution workflowExecution;
-    
-    protected DecisionContextProvider decisionContextProvider = new DecisionContextProviderImpl();
+
+    protected String requestedWorkflowId;
+
+    protected boolean startAttempted;
 
     protected Settable<String> runId = new Settable<String>();
+
+    protected DecisionContextProvider decisionContextProvider = new DecisionContextProviderImpl();
 
     public DynamicWorkflowClientImpl() {
         this(null, null, null, null, null);
@@ -59,14 +63,19 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
     }
 
     public DynamicWorkflowClientImpl(WorkflowExecution workflowExecution, WorkflowType workflowType,
-            StartWorkflowOptions options, DataConverter dataConverter) {
+                                     StartWorkflowOptions options, DataConverter dataConverter) {
         this(workflowExecution, workflowType, options, dataConverter, null);
     }
 
     public DynamicWorkflowClientImpl(WorkflowExecution workflowExecution, WorkflowType workflowType,
-            StartWorkflowOptions options, DataConverter dataConverter, GenericWorkflowClient genericClient) {
+                                     StartWorkflowOptions options, DataConverter dataConverter, GenericWorkflowClient genericClient) {
         this.workflowType = workflowType;
+
         this.workflowExecution = workflowExecution;
+        if (workflowExecution.getRunId() != null) {
+            this.runId.set(workflowExecution.getRunId());
+        }
+
         if (dataConverter == null) {
             this.dataConverter = new JsonDataConverter();
         }
@@ -75,9 +84,6 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
         }
         this.schedulingOptions = options;
         this.genericClient = genericClient;
-        if (workflowExecution.getRunId() != null) {
-            this.runId.set(workflowExecution.getRunId());
-        }
     }
 
     @Override
@@ -146,10 +152,11 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
     }
 
     public <T> Promise<T> startWorkflowExecution(final Promise<Object>[] arguments,
-            final StartWorkflowOptions startOptionsOverride, final Class<T> returnType, final Promise<?>... waitFor) {
+                                                 final StartWorkflowOptions startOptionsOverride, final Class<T> returnType, final Promise<?>... waitFor) {
         checkState();
         if (runId.isReady()) {
             runId = new Settable<String>();
+            workflowExecution.setRunId(null);
         }
         return new Functor<T>(arguments) {
 
@@ -167,11 +174,12 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
     }
 
     public <T> Promise<T> startWorkflowExecution(final Object[] arguments, final StartWorkflowOptions startOptionsOverride,
-            final Class<T> returnType, Promise<?>... waitFor) {
+                                                 final Class<T> returnType, Promise<?>... waitFor) {
         checkState();
         final Settable<T> result = new Settable<T>();
         if (runId.isReady()) {
             runId = new Settable<String>();
+            workflowExecution.setRunId(null);
         }
         new TryFinally(waitFor) {
 
@@ -181,9 +189,17 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
             protected void doTry() throws Throwable {
                 StartChildWorkflowExecutionParameters parameters = new StartChildWorkflowExecutionParameters();
                 parameters.setWorkflowType(workflowType);
-                String convertedArguments = dataConverter.toData(arguments);
+                final String convertedArguments = dataConverter.toData(arguments);
                 parameters.setInput(convertedArguments);
-                parameters.setWorkflowId(workflowExecution.getWorkflowId());
+                if (!startAttempted) {
+                    parameters.setWorkflowId(workflowExecution.getWorkflowId());
+                    requestedWorkflowId = workflowExecution.getWorkflowId();
+                    startAttempted = true;
+                } else {
+                    // Subsequent attempts (e.g. on retry) use the same workflow id as the initial attempt
+                    parameters.setWorkflowId(requestedWorkflowId);
+                    workflowExecution.setWorkflowId(requestedWorkflowId);
+                }
                 final StartChildWorkflowExecutionParameters startParameters = parameters.createStartChildWorkflowExecutionParametersFromOptions(
                         schedulingOptions, startOptionsOverride);
                 GenericWorkflowClient client = getGenericClientToUse();
@@ -194,12 +210,13 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
 
                     @Override
                     protected void doExecute() throws Throwable {
+                        StartChildWorkflowReply r = reply.get();
                         if (!runId.isReady()) {
-                            runId.set(reply.get().getRunId());
-                            workflowExecution.setRunId(runId.get());
+                            runId.set(r.getRunId());
+                            workflowExecution.setRunId(r.getRunId());
+                            workflowExecution.setWorkflowId(r.getWorkflowId());
                         }
                     }
-
                 };
             }
 
@@ -272,7 +289,7 @@ public class DynamicWorkflowClientImpl implements DynamicWorkflowClient {
     private GenericWorkflowClient getGenericClientToUse() {
         GenericWorkflowClient client;
         if (genericClient == null) {
-            client = decisionContextProvider.getDecisionContext().getWorkflowClient(); 
+            client = decisionContextProvider.getDecisionContext().getWorkflowClient();
         } else {
             client = genericClient;
         }

@@ -15,6 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 
 
 public class ManualActivityCompletionClientFactoryImpl extends ManualActivityCompletionClientFactory {
@@ -22,25 +23,40 @@ public class ManualActivityCompletionClientFactoryImpl extends ManualActivityCom
     private AmazonSimpleWorkflow service;
 
     private DataConverter dataConverter = new JsonDataConverter();
-    
+
+    private SimpleWorkflowClientConfig config;
+
     public ManualActivityCompletionClientFactoryImpl(AmazonSimpleWorkflow service) {
-        this.service = service;
+        this(service, null);
     }
-    
+
+    public ManualActivityCompletionClientFactoryImpl(AmazonSimpleWorkflow service, SimpleWorkflowClientConfig config) {
+        this.service = service;
+        this.config = config;
+    }
+
     public AmazonSimpleWorkflow getService() {
         return service;
     }
-    
+
     public void setService(AmazonSimpleWorkflow service) {
         this.service = service;
     }
-    
+
     public DataConverter getDataConverter() {
         return dataConverter;
     }
-    
+
     public void setDataConverter(DataConverter dataConverter) {
         this.dataConverter = dataConverter;
+    }
+
+    public SimpleWorkflowClientConfig getClientConfig() {
+        return config;
+    }
+
+    public void setClientConfig(SimpleWorkflowClientConfig config) {
+        this.config = config;
     }
 
     @Override
@@ -51,7 +67,7 @@ public class ManualActivityCompletionClientFactoryImpl extends ManualActivityCom
         if (dataConverter == null) {
             throw new IllegalStateException("required property dataConverter is null");
         }
-        return new ManualActivityCompletionClientImpl(service, taskToken, dataConverter);
+        return new ManualActivityCompletionClientImpl(service, taskToken, dataConverter, config);
     }
 
 }

@@ -45,13 +45,13 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class BackoffThrottler {
 
-    private final long initialSleep;
+    protected final long initialSleep;
 
-    private final long maxSleep;
+    protected final long maxSleep;
 
-    private final double backoffCoefficient;
+    protected final double backoffCoefficient;
 
-    private final AtomicLong failureCount = new AtomicLong();
+    protected final AtomicLong failureCount = new AtomicLong();
 
     /**
      * Construct an instance of the throttler.
@@ -69,7 +69,7 @@ public class BackoffThrottler {
         this.backoffCoefficient = backoffCoefficient;
     }
 
-    private long calculateSleepTime() {
+    protected long calculateSleepTime() {
         double sleepMillis = (Math.pow(backoffCoefficient, failureCount.get() - 1)) * initialSleep;
         return Math.min((long) sleepMillis, maxSleep);
     }

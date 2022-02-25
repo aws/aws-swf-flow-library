@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOActivityImplementationFactory;
 import com.amazonaws.services.simpleworkflow.flow.worker.GenericActivityWorker;
@@ -32,7 +33,11 @@ public class ActivityWorker implements WorkerBase {
     private final POJOActivityImplementationFactory factory;
 
     public ActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
-        this(new GenericActivityWorker(service, domain, taskListToPoll));
+        this(service, domain, taskListToPoll, null);
+    }
+
+    public ActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+        this(new GenericActivityWorker(service, domain, taskListToPoll, config));
     }
 
     public ActivityWorker(GenericActivityWorker genericWorker) {
@@ -87,22 +92,6 @@ public class ActivityWorker implements WorkerBase {
         factory.setDataConverter(dataConverter);
     }
 
-    /**
-     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #getExecuteThreadCount()} instead.
-     */
-    @Deprecated
-    public int getTaskExecutorThreadPoolSize() {
-        return genericWorker.getTaskExecutorThreadPoolSize();
-    }
-
-    /**
-     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #setExecuteThreadCount(int)} instead.
-     */
-    @Deprecated
-    public void setTaskExecutorThreadPoolSize(int taskExecutorThreadPoolSize) {
-        genericWorker.setTaskExecutorThreadPoolSize(taskExecutorThreadPoolSize);
-    }
-
     @Override
     public boolean shutdownAndAwaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return genericWorker.shutdownAndAwaitTermination(timeout, unit);
@@ -111,6 +100,11 @@ public class ActivityWorker implements WorkerBase {
     @Override
     public void shutdownNow() {
         genericWorker.shutdownNow();
+    }
+
+    @Override
+    public SimpleWorkflowClientConfig getClientConfig() {
+        return genericWorker.getClientConfig();
     }
 
     @Override
@@ -226,6 +220,16 @@ public class ActivityWorker implements WorkerBase {
     @Override
     public void setDisableServiceShutdownOnStop(boolean disableServiceShutdownOnStop) {
         genericWorker.setDisableServiceShutdownOnStop(disableServiceShutdownOnStop);
+    }
+
+    @Override
+    public boolean isAllowCoreThreadTimeOut() {
+        return genericWorker.isAllowCoreThreadTimeOut();
+    }
+
+    @Override
+    public void setAllowCoreThreadTimeOut(boolean allowCoreThreadTimeOut) {
+        genericWorker.setAllowCoreThreadTimeOut(allowCoreThreadTimeOut);
     }
 
     @Override

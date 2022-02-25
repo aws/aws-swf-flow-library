@@ -14,25 +14,24 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import com.amazonaws.services.simpleworkflow.model.ActivityTask;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationFactory;
+import com.amazonaws.services.simpleworkflow.flow.retry.ThrottlingRetrier;
+import com.amazonaws.services.simpleworkflow.model.ActivityTask;
 import com.amazonaws.services.simpleworkflow.model.ActivityType;
 import com.amazonaws.services.simpleworkflow.model.RegisterActivityTypeRequest;
 import com.amazonaws.services.simpleworkflow.model.TaskList;
 import com.amazonaws.services.simpleworkflow.model.TypeAlreadyExistsException;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 public class GenericActivityWorker extends GenericWorker<ActivityTask> {
 
@@ -40,12 +39,16 @@ public class GenericActivityWorker extends GenericWorker<ActivityTask> {
 
     private static final String POLL_THREAD_NAME_PREFIX = "SWF Activity ";
 
+    @Getter
+    @Setter
     private ActivityImplementationFactory activityImplementationFactory;
 
-    private int taskExecutorThreadPoolSize = 100;
-
     public GenericActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
-        super(service, domain, taskListToPoll);
+        this(service, domain, taskListToPoll, null);
+    }
+
+    public GenericActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+        super(service, domain, taskListToPoll, config);
         if (service == null) {
             throw new IllegalArgumentException("service");
         }
@@ -55,49 +58,11 @@ public class GenericActivityWorker extends GenericWorker<ActivityTask> {
         super();
     }
 
-    public ActivityImplementationFactory getActivityImplementationFactory() {
-        return activityImplementationFactory;
-    }
-
-    public void setActivityImplementationFactory(ActivityImplementationFactory activityImplementationFactory) {
-        this.activityImplementationFactory = activityImplementationFactory;
-    }
-
-    /**
-     * @deprecated This method has been deprecated since flow-3.7.
-     */
-    @Deprecated
-    public int getTaskExecutorThreadPoolSize() {
-        return taskExecutorThreadPoolSize;
-    }
-
-    /**
-     * @deprecated This method has been deprecated since flow-3.7.
-     */
-    @Deprecated
-    public void setTaskExecutorThreadPoolSize(int taskExecutorThreadPoolSize) {
-        if (taskExecutorThreadPoolSize < 1) {
-            throw new IllegalArgumentException("0 or negative taskExecutorThreadPoolSize");
-        }
-        checkStarted();
-        this.taskExecutorThreadPoolSize = taskExecutorThreadPoolSize;
-    }
-
     @Override
-    public String toString() {
-        return this.getClass().getSimpleName() + " [super=" + super.toString() + ", taskExecutorThreadPoolSize="
-                + taskExecutorThreadPoolSize + "]";
-    }
-
-    @Override
-    protected String getPollThreadNamePrefix() {
-        return POLL_THREAD_NAME_PREFIX + getTaskListToPoll() + " ";
-    }
-
-    @Override
-    protected TaskPoller createPoller() {
+    protected TaskPoller<ActivityTask> createPoller() {
         ActivityTaskPoller activityTaskPoller = new ActivityTaskPoller(service, domain, getTaskListToPoll(),
-                activityImplementationFactory);
+                activityImplementationFactory, executeThreadCount, getClientConfig());
+
         activityTaskPoller.setIdentity(getIdentity());
         activityTaskPoller.setUncaughtExceptionHandler(uncaughtExceptionHandler);
         return activityTaskPoller;
@@ -105,11 +70,16 @@ public class GenericActivityWorker extends GenericWorker<ActivityTask> {
 
     @Override
     public void registerTypesToPoll() {
-        registerActivityTypes(service, domain, getTaskListToPoll(), activityImplementationFactory);
+        registerActivityTypes(service, domain, getTaskListToPoll(), activityImplementationFactory, getClientConfig());
     }
 
     public static void registerActivityTypes(AmazonSimpleWorkflow service, String domain, String defaultTaskList,
                                              ActivityImplementationFactory activityImplementationFactory) {
+        registerActivityTypes(service, domain, defaultTaskList, activityImplementationFactory, null);
+    }
+
+    public static void registerActivityTypes(AmazonSimpleWorkflow service, String domain, String defaultTaskList,
+                                             ActivityImplementationFactory activityImplementationFactory, SimpleWorkflowClientConfig config) {
         for (ActivityType activityType : activityImplementationFactory.getActivityTypesToRegister()) {
             try {
                 ActivityImplementation implementation = activityImplementationFactory.getActivityImplementation(activityType);
@@ -118,7 +88,7 @@ public class GenericActivityWorker extends GenericWorker<ActivityTask> {
                 }
                 ActivityTypeRegistrationOptions registrationOptions = implementation.getRegistrationOptions();
                 if (registrationOptions != null) {
-                    registerActivityType(service, domain, activityType, registrationOptions, defaultTaskList);
+                    registerActivityType(service, domain, activityType, registrationOptions, defaultTaskList, config);
                 }
             }
             catch (TypeAlreadyExistsException ex) {
@@ -131,6 +101,23 @@ public class GenericActivityWorker extends GenericWorker<ActivityTask> {
 
     public static void registerActivityType(AmazonSimpleWorkflow service, String domain, ActivityType activityType,
                                             ActivityTypeRegistrationOptions registrationOptions, String taskListToPoll) throws AmazonServiceException {
+        registerActivityType(service, domain, activityType, registrationOptions, taskListToPoll, null);
+    }
+
+    public static void registerActivityType(AmazonSimpleWorkflow service, String domain, ActivityType activityType,
+                                            ActivityTypeRegistrationOptions registrationOptions, String taskListToPoll,
+                                            SimpleWorkflowClientConfig config) throws AmazonServiceException {
+        RegisterActivityTypeRequest registerActivity = buildRegisterActivityTypeRequest(domain, activityType, registrationOptions, taskListToPoll);
+
+        RequestTimeoutHelper.overrideControlPlaneRequestTimeout(registerActivity, config);
+        registerActivityTypeWithRetry(service, registerActivity);
+        if (log.isInfoEnabled()) {
+            log.info("registered activity type: " + activityType);
+        }
+    }
+
+    private static RegisterActivityTypeRequest buildRegisterActivityTypeRequest(String domain, ActivityType activityType,
+                                                                                ActivityTypeRegistrationOptions registrationOptions, String taskListToPoll) throws AmazonServiceException {
         RegisterActivityTypeRequest registerActivity = new RegisterActivityTypeRequest();
         registerActivity.setDomain(domain);
         String taskList = registrationOptions.getDefaultTaskList();
@@ -154,10 +141,13 @@ public class GenericActivityWorker extends GenericWorker<ActivityTask> {
         if (registrationOptions.getDescription() != null) {
             registerActivity.setDescription(registrationOptions.getDescription());
         }
-        service.registerActivityType(registerActivity);
-        if (log.isInfoEnabled()) {
-            log.info("registered activity type: " + activityType);
-        }
+        return registerActivity;
+    }
+
+    private static void registerActivityTypeWithRetry(AmazonSimpleWorkflow service,
+                                                      RegisterActivityTypeRequest registerActivityTypeRequest) {
+        ThrottlingRetrier retrier = new ThrottlingRetrier(getRegisterTypeThrottledRetryParameters());
+        retrier.retry(() -> service.registerActivityType(registerActivityTypeRequest));
     }
 
     @Override
@@ -165,4 +155,14 @@ public class GenericActivityWorker extends GenericWorker<ActivityTask> {
         checkRequiredProperty(activityImplementationFactory, "activityImplementationFactory");
     }
 
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + " [super=" + super.toString() + ", taskExecutorThreadPoolSize="
+                + executeThreadCount + "]";
+    }
+
+    @Override
+    protected String getPollThreadNamePrefix() {
+        return POLL_THREAD_NAME_PREFIX + getTaskListToPoll() + " ";
+    }
 }

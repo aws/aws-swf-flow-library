@@ -15,12 +15,14 @@
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.lang.management.ManagementFactory;
+import java.time.Duration;
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -47,7 +49,12 @@ public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.Decisio
 
         private DecisionTask next;
 
+        final long startedTime;
+        int pages;
+
         public DecisionTaskIterator() {
+            startedTime = System.nanoTime();
+            pages = 1;
             next = firstDecisionTask = poll(null);
         }
 
@@ -64,10 +71,19 @@ public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.Decisio
             DecisionTask result = next;
             if (next.getNextPageToken() == null) {
                 next = null;
+                if (log.isDebugEnabled()) {
+                    final long iteratorCompletionTime = System.nanoTime();
+                    log.debug(String.format("Finished paginating request. NumPages [%d]. Duration: [%dms]. Domain: [%s]. TaskList [%s].",
+                            pages,
+                            Duration.ofNanos(iteratorCompletionTime - startedTime).toMillis(),
+                            domain,
+                            taskListToPoll));
+                }
             }
             else {
                 try {
                     next = poll(next.getNextPageToken());
+                    pages++;
                 }
                 catch (Exception e) {
                     // Error is used as it fails a decision instead of affecting workflow code
@@ -111,17 +127,25 @@ public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.Decisio
 
     private final Condition suspentionCondition = lock.newCondition();
 
+    private SimpleWorkflowClientConfig config;
+
     public DecisionTaskPoller() {
         identity = ManagementFactory.getRuntimeMXBean().getName();
     }
 
     public DecisionTaskPoller(AmazonSimpleWorkflow service, String domain, String taskListToPoll,
                               DecisionTaskHandler decisionTaskHandler) {
+        this(service, domain, taskListToPoll, decisionTaskHandler, null);
+    }
+
+    public DecisionTaskPoller(AmazonSimpleWorkflow service, String domain, String taskListToPoll,
+                              DecisionTaskHandler decisionTaskHandler, SimpleWorkflowClientConfig config) {
         this.service = service;
         this.domain = domain;
         this.taskListToPoll = taskListToPoll;
         this.decisionTaskHandler = decisionTaskHandler;
         identity = ManagementFactory.getRuntimeMXBean().getName();
+        this.config = config;
     }
 
     public String getIdentity() {
@@ -167,6 +191,14 @@ public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.Decisio
         this.taskListToPoll = pollTaskList;
     }
 
+    public void setSimpleWorkflowClientConfig(SimpleWorkflowClientConfig config) {
+        this.config = config;
+    }
+
+    public SimpleWorkflowClientConfig getSimpleWorkflowClientConfig() {
+        return config;
+    }
+
     /**
      * Poll for a task using {@link #getPollTimeoutInSeconds()}
      *
@@ -188,6 +220,8 @@ public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.Decisio
         if (log.isDebugEnabled()) {
             log.debug("poll request begin: " + pollRequest);
         }
+
+        RequestTimeoutHelper.overridePollRequestTimeout(pollRequest, config);
         DecisionTask result = service.pollForDecisionTask(pollRequest);
         if (log.isDebugEnabled()) {
             log.debug("poll request returned decision task: workflowType=" + result.getWorkflowType() + ", workflowExecution="
@@ -219,6 +253,7 @@ public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.Decisio
             if (decisionsLog.isTraceEnabled()) {
                 decisionsLog.trace(WorkflowExecutionUtils.prettyPrintDecisions(taskCompletedRequest.getDecisions()));
             }
+            RequestTimeoutHelper.overrideDataPlaneRequestTimeout(taskCompletedRequest, config);
             service.respondDecisionTaskCompleted(taskCompletedRequest);
         } catch (Error e) {
             DecisionTask firstTask = tasks.getFirstDecisionTask();
@@ -320,5 +355,11 @@ public class DecisionTaskPoller implements TaskPoller<DecisionTaskPoller.Decisio
         finally {
             lock.unlock();
         }
+    }
+
+    @Override
+    public SuspendableSemaphore getPollingSemaphore() {
+        // No polling semaphore for DecisionTaskPoller
+        return null;
     }
 }

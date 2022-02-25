@@ -56,7 +56,10 @@ abstract class AsyncContextBase implements Runnable, AsyncParentContext {
         this.name = parent == null ? null : parent.getName();
         AsyncStackTrace parentStack = parent.getStackTrace();
         if (parentStack != null) {
-            stackTrace = new AsyncStackTrace(parentStack, Thread.currentThread().getStackTrace(), skipStackLines);
+            StackTraceElement[] stacktrace = System.getProperty("com.amazonaws.simpleworkflow.disableAsyncStackTrace", "false").equalsIgnoreCase("true") ?
+                    new StackTraceElement[0] :
+                    Thread.currentThread().getStackTrace();
+            stackTrace = new AsyncStackTrace(parentStack, stacktrace, skipStackLines);
             stackTrace.setStartFrom(parent.getParentTaskMethodName());
             stackTrace.setHideStartFromMethod(parent.getHideStartFromMethod());
         }

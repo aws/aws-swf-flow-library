@@ -12,20 +12,22 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.amazonaws.services.simpleworkflow.flow.worker;
+package com.amazonaws.services.simpleworkflow.flow.retry;
 
+import com.amazonaws.services.simpleworkflow.flow.worker.BackoffThrottler;
+import com.amazonaws.services.simpleworkflow.flow.worker.ExponentialRetryParameters;
 import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 
-public class SynchronousRetrier {
-    
-    private static final Log log = LogFactory.getLog(SynchronousRetrier.class);
+/**
+ * This class is for internal use only and may be changed or removed without prior notice.
+ *
+ */
+public abstract class Retrier {
 
     private final ExponentialRetryParameters retryParameters;
+    private final Log logger;
 
-    private final Class<?>[] exceptionsToNotRetry;
-
-    public SynchronousRetrier(ExponentialRetryParameters retryParameters, Class<?>... exceptionsToNotRetry) {
+    public Retrier(ExponentialRetryParameters retryParameters, Log logger) {
         if (retryParameters.getBackoffCoefficient() < 0) {
             throw new IllegalArgumentException("negative backoffCoefficient");
         }
@@ -39,22 +41,17 @@ public class SynchronousRetrier {
             throw new IllegalArgumentException("maximumRetries < minimumRetries");
         }
         this.retryParameters = retryParameters;
-        this.exceptionsToNotRetry = exceptionsToNotRetry;
+        this.logger = logger;
     }
 
-    public ExponentialRetryParameters getRetryParameters() {
-        return retryParameters;
-    }
-    
-    public Class<?>[] getExceptionsToNotRetry() {
-        return exceptionsToNotRetry;
-    }
+    protected abstract BackoffThrottler createBackoffThrottler();
+
+    protected abstract boolean shouldRetry(RuntimeException e);
 
     public void retry(Runnable r) {
         int attempt = 0;
         long startTime = System.currentTimeMillis();
-        BackoffThrottler throttler = new BackoffThrottler(retryParameters.getInitialInterval(),
-                retryParameters.getMaximumRetryInterval(), retryParameters.getBackoffCoefficient());
+        BackoffThrottler throttler = createBackoffThrottler();
         boolean success = false;
         do {
             try {
@@ -70,20 +67,22 @@ public class SynchronousRetrier {
             }
             catch (RuntimeException e) {
                 throttler.failure();
-                for (Class<?> exceptionToNotRetry : exceptionsToNotRetry) {
-                    if (exceptionToNotRetry.isAssignableFrom(e.getClass())) {
-                        throw e;
-                    }
+                if (!shouldRetry(e)) {
+                    throw e;
                 }
                 long elapsed = System.currentTimeMillis() - startTime;
                 if (attempt > retryParameters.getMaximumRetries()
                         || (elapsed >= retryParameters.getExpirationInterval() && attempt > retryParameters.getMinimumRetries())) {
                     throw e;
                 }
-                log.warn("Retrying after failure", e);
+                logger.warn("Retrying after failure", e);
             }
         }
         while (!success);
     }
 
+    public ExponentialRetryParameters getRetryParameters() {
+        return retryParameters;
+    }
 }
+

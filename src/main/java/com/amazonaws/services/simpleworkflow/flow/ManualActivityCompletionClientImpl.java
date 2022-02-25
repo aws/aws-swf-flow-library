@@ -17,7 +17,9 @@ package com.amazonaws.services.simpleworkflow.flow;
 import java.util.concurrent.CancellationException;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.model.ActivityTaskStatus;
 import com.amazonaws.services.simpleworkflow.model.RecordActivityTaskHeartbeatRequest;
 import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCanceledRequest;
@@ -36,10 +38,17 @@ class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient 
 
     private final DataConverter dataConverter;
 
+    private SimpleWorkflowClientConfig config;
+
     public ManualActivityCompletionClientImpl(AmazonSimpleWorkflow service, String taskToken, DataConverter dataConverter) {
+        this(service, taskToken, dataConverter, null);
+    }
+
+    public ManualActivityCompletionClientImpl(AmazonSimpleWorkflow service, String taskToken, DataConverter dataConverter, SimpleWorkflowClientConfig config) {
         this.service = service;
         this.taskToken = taskToken;
         this.dataConverter = dataConverter;
+        this.config = config;
     }
 
     @Override
@@ -48,6 +57,8 @@ class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient 
         String convertedResult = dataConverter.toData(result);
         request.setResult(convertedResult);
         request.setTaskToken(taskToken);
+
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.respondActivityTaskCompleted(request);
     }
 
@@ -58,6 +69,8 @@ class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient 
         request.setReason(WorkflowExecutionUtils.truncateReason(failure.getMessage()));
         request.setDetails(convertedFailure);
         request.setTaskToken(taskToken);
+
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.respondActivityTaskFailed(request);
     }
 
@@ -66,7 +79,9 @@ class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient 
         RecordActivityTaskHeartbeatRequest request = new RecordActivityTaskHeartbeatRequest();
         request.setDetails(details);
         request.setTaskToken(taskToken);
-        ActivityTaskStatus status = service.recordActivityTaskHeartbeat(request);
+        ActivityTaskStatus status;
+
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         status = service.recordActivityTaskHeartbeat(request);
         if (status.isCancelRequested()) {
             throw new CancellationException();
@@ -78,6 +93,8 @@ class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient 
         RespondActivityTaskCanceledRequest request = new RespondActivityTaskCanceledRequest();
         request.setDetails(details);
         request.setTaskToken(taskToken);
+
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.respondActivityTaskCanceled(request);
     }
 

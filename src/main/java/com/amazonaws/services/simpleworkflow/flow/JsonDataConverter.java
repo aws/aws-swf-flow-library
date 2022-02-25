@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -56,7 +57,11 @@ public class JsonDataConverter extends DataConverter {
 
         // This will allow including type information all non-final types.  This allows correct
         // serialization/deserialization of generic collections, for example List<MyType>.
-        mapper.enableDefaultTyping(DefaultTyping.NON_FINAL);
+        mapper.activateDefaultTyping(
+                BasicPolymorphicTypeValidator.builder()
+                        .allowIfBaseType(Object.class)
+                        .build(),
+                DefaultTyping.NON_FINAL);
     }
 
     /**

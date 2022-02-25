@@ -12,16 +12,14 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.amazonaws.services.simpleworkflow.flow.generic;
+package com.amazonaws.services.simpleworkflow.flow.replaydeserializer;
 
-import com.amazonaws.services.simpleworkflow.flow.core.Promise;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
+import java.util.Date;
 
-public interface StartChildWorkflowReply {
-
-    public String getWorkflowId();
-
-    public String getRunId();
-    
-    public Promise<String> getResult();
+public class TimeStampMixin {
+    @JsonDeserialize(using = TimestampDeserializer.class)
+    Date eventTimestamp;
 }
+
