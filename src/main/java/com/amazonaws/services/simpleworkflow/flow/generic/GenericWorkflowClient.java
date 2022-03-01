@@ -39,7 +39,7 @@ public interface GenericWorkflowClient {
     public void continueAsNewOnCompletion(ContinueAsNewWorkflowExecutionParameters parameters);
 
     /**
-     * Deterministic unique Id generator
+     * Deterministic unique child workflow id generator
      */
     public String generateUniqueId();
 

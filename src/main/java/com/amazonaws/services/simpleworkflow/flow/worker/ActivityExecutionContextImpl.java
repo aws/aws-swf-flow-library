@@ -18,6 +18,8 @@ import java.util.concurrent.CancellationException;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.model.ActivityTask;
 import com.amazonaws.services.simpleworkflow.model.ActivityTaskStatus;
 import com.amazonaws.services.simpleworkflow.model.RecordActivityTaskHeartbeatRequest;
@@ -39,6 +41,8 @@ class ActivityExecutionContextImpl extends ActivityExecutionContext {
     
     private final ActivityTask task;
 
+    private SimpleWorkflowClientConfig config;
+
     /**
      * Create an ActivityExecutionContextImpl with the given attributes.
      * 
@@ -52,14 +56,31 @@ class ActivityExecutionContextImpl extends ActivityExecutionContext {
      * @see ActivityExecutionContext
      */
     public ActivityExecutionContextImpl(AmazonSimpleWorkflow service, String domain, ActivityTask task) {
+        this(service, domain, task, null);
+    }
+
+    /**
+     * Create an ActivityExecutionContextImpl with the given attributes.
+     *
+     * @param service
+     *            The {@link AmazonSimpleWorkflow} this
+     *            ActivityExecutionContextImpl will send service calls to.
+     * @param task
+     *            The {@link ActivityTask} this ActivityExecutionContextImpl
+     *            will be used for.
+     *
+     * @see ActivityExecutionContext
+     */
+    public ActivityExecutionContextImpl(AmazonSimpleWorkflow service, String domain, ActivityTask task, SimpleWorkflowClientConfig config) {
         this.domain = domain;
         this.service = service;
         this.task = task;
+        this.config = config;
     }
 
     /**
      * @throws CancellationException
-     * @see ActivityExecutionContext#recordActivityHeartbeat(int)
+     * @see ActivityExecutionContext#recordActivityHeartbeat(String)
      */
     @Override
     public void recordActivityHeartbeat(String details) throws CancellationException {
@@ -69,6 +90,7 @@ class ActivityExecutionContextImpl extends ActivityExecutionContext {
         r.setTaskToken(task.getTaskToken());
         r.setDetails(details);
         ActivityTaskStatus status;
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(r, config);
         status = service.recordActivityTaskHeartbeat(r);
         if (status.isCancelRequested()) {
             throw new CancellationException();

@@ -23,13 +23,17 @@ import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DataConverterException;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
-import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
+import com.amazonaws.services.simpleworkflow.flow.common.FlowValueConstraint;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationBase;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeExecutionOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeRegistrationOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.CurrentActivityExecutionContext;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 class POJOActivityImplementation extends ActivityImplementationBase {
+
+    private static final Log log = LogFactory.getLog(POJOActivityImplementation.class);
 
     private final Method activity;
 
@@ -94,7 +98,7 @@ class POJOActivityImplementation extends ActivityImplementationBase {
             throw (CancellationException) exception;
         }
 
-        String reason = WorkflowExecutionUtils.truncateReason(exception.getMessage());
+        String reason = exception.getMessage();
         String details = null;
         try {
             details = converter.toData(exception);
@@ -104,6 +108,13 @@ class POJOActivityImplementation extends ActivityImplementationBase {
                 dataConverterException.initCause(exception);
             }
             throw dataConverterException;
+        }
+
+        if (details.length() > FlowValueConstraint.FAILURE_DETAILS.getMaxSize()) {
+            log.warn("Length of details is over maximum input length of 32768. Actual details: " + details);
+            Throwable truncatedException = new Throwable(reason);
+            truncatedException.setStackTrace(new StackTraceElement[] {exception.getStackTrace()[0]});
+            details = converter.toData(truncatedException);
         }
 
         throw new ActivityFailureException(reason, details);

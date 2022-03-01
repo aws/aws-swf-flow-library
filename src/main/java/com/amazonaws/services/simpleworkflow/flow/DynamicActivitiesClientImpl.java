@@ -45,7 +45,7 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
     }
 
     public DynamicActivitiesClientImpl(ActivitySchedulingOptions schedulingOptions, DataConverter dataConverter,
-            GenericActivityClient genericClient) {
+                                       GenericActivityClient genericClient) {
         this.genericClient = genericClient;
 
         if (schedulingOptions == null) {
@@ -92,7 +92,7 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
     }
 
     public <T> Promise<T> scheduleActivity(final ActivityType activityType, final Promise<?>[] arguments,
-            final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, final Promise<?>... waitFor) {
+                                           final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, final Promise<?>... waitFor) {
         return new Functor<T>(arguments) {
 
             @Override
@@ -110,7 +110,7 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
     }
 
     public <T> Promise<T> scheduleActivity(final ActivityType activityType, final Object[] arguments,
-            final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, Promise<?>... waitFor) {
+                                           final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, Promise<?>... waitFor) {
         final Settable<T> result = new Settable<T>();
         new TryCatchFinally(waitFor) {
 
@@ -120,7 +120,7 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
             protected void doTry() throws Throwable {
                 ExecuteActivityParameters parameters = new ExecuteActivityParameters();
                 parameters.setActivityType(activityType);
-                String stringInput = dataConverter.toData(arguments);
+                final String stringInput = dataConverter.toData(arguments);
                 parameters.setInput(stringInput);
                 final ExecuteActivityParameters _scheduleParameters_ = parameters.createExecuteActivityParametersFromOptions(
                         schedulingOptions, optionsOverride);

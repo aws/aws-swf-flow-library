@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import org.springframework.context.SmartLifecycle;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
@@ -48,12 +49,20 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
         this(new GenericActivityWorker(service, domain, taskListToPoll));
     }
 
+    public SpringActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+        this(new GenericActivityWorker(service, domain, taskListToPoll, config));
+    }
+
     public SpringActivityWorker(GenericActivityWorker genericWorker) {
         Objects.requireNonNull(genericWorker,"the activity worker is required");
 
         this.genericWorker = genericWorker;
         this.factory =  new POJOActivityImplementationFactory();
         this.genericWorker.setActivityImplementationFactory(factory);
+    }
+
+    public SimpleWorkflowClientConfig getClientConfig() {
+        return genericWorker.getClientConfig();
     }
 
     public AmazonSimpleWorkflow getService() {
@@ -178,28 +187,22 @@ public class SpringActivityWorker implements WorkerBase, SmartLifecycle {
         genericWorker.setExecuteThreadCount(threadCount);
     }
 
-    /**
-     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #getExecuteThreadCount()} instead.
-     */
-    @Deprecated
-    public int getTaskExecutorThreadPoolSize() {
-        return genericWorker.getTaskExecutorThreadPoolSize();
-    }
-
-    /**
-     * @deprecated This method has been deprecated since flow-3.7. Try using {@link #setExecuteThreadCount(int)} instead.
-     */
-    @Deprecated
-    public void setTaskExecutorThreadPoolSize(int taskExecutorThreadPoolSize) {
-        genericWorker.setTaskExecutorThreadPoolSize(taskExecutorThreadPoolSize);
-    }
-
     public boolean isDisableServiceShutdownOnStop() {
         return genericWorker.isDisableServiceShutdownOnStop();
     }
 
     public void setDisableServiceShutdownOnStop(boolean disableServiceShutdownOnStop) {
         genericWorker.setDisableServiceShutdownOnStop(disableServiceShutdownOnStop);
+    }
+
+    @Override
+    public boolean isAllowCoreThreadTimeOut() {
+        return genericWorker.isAllowCoreThreadTimeOut();
+    }
+
+    @Override
+    public void setAllowCoreThreadTimeOut(boolean allowCoreThreadTimeOut) {
+        genericWorker.setAllowCoreThreadTimeOut(allowCoreThreadTimeOut);
     }
 
     @Override

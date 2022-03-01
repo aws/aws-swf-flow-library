@@ -15,6 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClientExternal;
 import com.amazonaws.services.simpleworkflow.flow.worker.GenericWorkflowClientExternalImpl;
 import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
@@ -29,6 +30,10 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
 
     public WorkflowClientFactoryExternalBase(AmazonSimpleWorkflow service, String domain) {
         this(new GenericWorkflowClientExternalImpl(service, domain));
+    }
+
+    public WorkflowClientFactoryExternalBase(AmazonSimpleWorkflow service, String domain, SimpleWorkflowClientConfig config) {
+        this(new GenericWorkflowClientExternalImpl(service, domain, config));
     }
 
     public WorkflowClientFactoryExternalBase() {
@@ -100,7 +105,7 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
 
     @Override
     public T getClient(WorkflowExecution workflowExecution, StartWorkflowOptions options, DataConverter dataConverter,
-            GenericWorkflowClientExternal genericClient) {
+                       GenericWorkflowClientExternal genericClient) {
         checkGenericClient();
         return createClientInstance(workflowExecution, options, dataConverter, genericClient);
     }
@@ -114,6 +119,6 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
     }
 
     protected abstract T createClientInstance(WorkflowExecution workflowExecution, StartWorkflowOptions options,
-            DataConverter dataConverter, GenericWorkflowClientExternal genericClient);
+                                              DataConverter dataConverter, GenericWorkflowClientExternal genericClient);
 
 }

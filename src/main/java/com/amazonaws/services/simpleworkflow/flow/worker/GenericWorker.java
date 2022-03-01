@@ -14,6 +14,19 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
+import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
+import com.amazonaws.services.simpleworkflow.flow.WorkerBase;
+import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
+import com.amazonaws.services.simpleworkflow.model.DomainAlreadyExistsException;
+import com.amazonaws.services.simpleworkflow.model.RegisterDomainRequest;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.ScheduledExecutorService;
@@ -25,26 +38,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
-import com.amazonaws.services.simpleworkflow.flow.WorkerBase;
-import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
-import com.amazonaws.services.simpleworkflow.model.DomainAlreadyExistsException;
-import com.amazonaws.services.simpleworkflow.model.RegisterDomainRequest;
-
 public abstract class GenericWorker<T> implements WorkerBase {
 
+    @RequiredArgsConstructor
     class ExecutorThreadFactory implements ThreadFactory {
 
-        private AtomicInteger threadIndex = new AtomicInteger();
+        private final AtomicInteger threadIndex = new AtomicInteger();
 
         private final String threadPrefix;
-
-        public ExecutorThreadFactory(String threadPrefix) {
-            this.threadPrefix = threadPrefix;
-        }
 
         @Override
         public Thread newThread(Runnable r) {
@@ -55,12 +56,9 @@ public abstract class GenericWorker<T> implements WorkerBase {
         }
     }
 
+    @RequiredArgsConstructor
     private class PollingTask implements Runnable {
         private final TaskPoller<T> poller;
-
-        PollingTask(final TaskPoller poller) {
-            this.poller = poller;
-        }
 
         @Override
         public void run() {
@@ -85,13 +83,34 @@ public abstract class GenericWorker<T> implements WorkerBase {
                     if (pollingExecutor.isShutdown() || workerExecutor.isShutdown()) {
                         return;
                     }
-                    T task = poller.poll();
-                    if (task == null) {
-                        log.debug("no work returned");
-                        return;
+                    boolean semaphoreNeedsRelease = false;
+                    SuspendableSemaphore pollingSemaphore = poller.getPollingSemaphore();
+                    try {
+                        if (pollingSemaphore != null) {
+                            pollingSemaphore.acquire();
+                        }
+                        semaphoreNeedsRelease = true;
+                        T task = poller.poll();
+                        if (task == null) {
+                            log.debug("no work returned");
+                            return;
+                        }
+                        semaphoreNeedsRelease = false;
+                        try {
+                            workerExecutor.execute(new ExecuteTask(poller, task, pollingSemaphore));
+                            log.debug("poll task end");
+                        } catch (Exception e) {
+                            semaphoreNeedsRelease = true;
+                            throw e;
+                        } catch (Error e) {
+                            semaphoreNeedsRelease = true;
+                            throw e;
+                        }
+                    } finally {
+                        if (pollingSemaphore != null && semaphoreNeedsRelease) {
+                            pollingSemaphore.release();
+                        }
                     }
-                    workerExecutor.execute(new ExecuteTask(poller, task));
-                    log.debug("poll task end");
                 }
             } catch (final Throwable e) {
                 pollBackoffThrottler.failure();
@@ -102,14 +121,11 @@ public abstract class GenericWorker<T> implements WorkerBase {
         }
     }
 
+    @RequiredArgsConstructor
     private class ExecuteTask implements Runnable {
         private final TaskPoller<T> poller;
         private final T task;
-
-        ExecuteTask(final TaskPoller poller, final T task) {
-            this.poller = poller;
-            this.task = task;
-        }
+        private final SuspendableSemaphore pollingSemaphore;
 
         @Override
         public void run() {
@@ -123,6 +139,10 @@ public abstract class GenericWorker<T> implements WorkerBase {
                 if (!(e.getCause() instanceof InterruptedException)) {
                     uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), e);
                 }
+            } finally {
+                if (pollingSemaphore != null) {
+                    pollingSemaphore.release();
+                }
             }
         }
     }
@@ -131,29 +151,52 @@ public abstract class GenericWorker<T> implements WorkerBase {
 
     protected static final int MAX_IDENTITY_LENGTH = 256;
 
+    @Getter
+    @Setter
     protected AmazonSimpleWorkflow service;
 
+    @Getter
+    @Setter
     protected String domain;
 
+    @Getter
     protected boolean registerDomain;
 
+    @Getter
+    @Setter
     protected long domainRetentionPeriodInDays = FlowConstants.NONE;
 
+    @Getter
+    @Setter
     private String taskListToPoll;
 
+    @Getter
+    @Setter
     private int maximumPollRateIntervalMilliseconds = 1000;
 
+    @Getter
+    @Setter
     private double maximumPollRatePerSecond;
 
+    @Getter
     private double pollBackoffCoefficient = 2;
 
+    @Getter
     private long pollBackoffInitialInterval = 100;
 
+    @Getter
     private long pollBackoffMaximumInterval = 60000;
 
+    @Getter
+    @Setter
     private boolean disableTypeRegistrationOnStart;
 
+    @Getter
     private boolean disableServiceShutdownOnStop;
+
+    @Getter
+    @Setter
+    private boolean allowCoreThreadTimeOut;
 
     private boolean suspended;
 
@@ -165,16 +208,22 @@ public abstract class GenericWorker<T> implements WorkerBase {
 
     private ThreadPoolExecutor workerExecutor;
 
+    @Getter
+    @Setter
     private String identity = ManagementFactory.getRuntimeMXBean().getName();
 
+    @Getter
     private int pollThreadCount = 1;
 
-    private int executeThreadCount = 1;
+    @Getter
+    protected int executeThreadCount = 100;
 
     private BackoffThrottler pollBackoffThrottler;
 
     private Throttler pollRateThrottler;
 
+    @Getter
+    @Setter
     protected UncaughtExceptionHandler uncaughtExceptionHandler = new UncaughtExceptionHandler() {
 
         @Override
@@ -183,12 +232,22 @@ public abstract class GenericWorker<T> implements WorkerBase {
         }
     };
 
-    private TaskPoller poller;
+    private TaskPoller<T> poller;
+
+    @Getter
+    @Setter
+    private SimpleWorkflowClientConfig clientConfig;
 
     public GenericWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
+        this(service, domain, taskListToPoll, null);
+    }
+
+    public GenericWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig clientConfig) {
+        this();
         this.service = service;
         this.domain = domain;
         this.taskListToPoll = taskListToPoll;
+        this.clientConfig = clientConfig;
     }
 
     public GenericWorker() {
@@ -198,208 +257,9 @@ public abstract class GenericWorker<T> implements WorkerBase {
     }
 
     @Override
-    public AmazonSimpleWorkflow getService() {
-        return service;
-    }
-
-    public void setService(AmazonSimpleWorkflow service) {
-        this.service = service;
-    }
-
-    @Override
-    public String getDomain() {
-        return domain;
-    }
-
-    public void setDomain(String domain) {
-        this.domain = domain;
-    }
-
-    @Override
-    public boolean isRegisterDomain() {
-        return registerDomain;
-    }
-
-    /**
-     * Should domain be registered on startup. Default is <code>false</code>.
-     * When enabled {@link #setDomainRetentionPeriodInDays(long)} property is
-     * required.
-     */
-    @Override
-    public void setRegisterDomain(boolean registerDomain) {
-        this.registerDomain = registerDomain;
-    }
-
-    @Override
-    public long getDomainRetentionPeriodInDays() {
-        return domainRetentionPeriodInDays;
-    }
-
-    @Override
-    public void setDomainRetentionPeriodInDays(long domainRetentionPeriodInDays) {
-        this.domainRetentionPeriodInDays = domainRetentionPeriodInDays;
-    }
-
-    @Override
-    public String getTaskListToPoll() {
-        return taskListToPoll;
-    }
-
-    public void setTaskListToPoll(String taskListToPoll) {
-        this.taskListToPoll = taskListToPoll;
-    }
-
-    @Override
-    public double getMaximumPollRatePerSecond() {
-        return maximumPollRatePerSecond;
-    }
-
-    @Override
-    public void setMaximumPollRatePerSecond(double maximumPollRatePerSecond) {
-        this.maximumPollRatePerSecond = maximumPollRatePerSecond;
-    }
-
-    @Override
-    public int getMaximumPollRateIntervalMilliseconds() {
-        return maximumPollRateIntervalMilliseconds;
-    }
-
-    @Override
-    public void setMaximumPollRateIntervalMilliseconds(int maximumPollRateIntervalMilliseconds) {
-        this.maximumPollRateIntervalMilliseconds = maximumPollRateIntervalMilliseconds;
-    }
-
-    @Override
-    public UncaughtExceptionHandler getUncaughtExceptionHandler() {
-        return uncaughtExceptionHandler;
-    }
-
-    @Override
-    public void setUncaughtExceptionHandler(UncaughtExceptionHandler uncaughtExceptionHandler) {
-        this.uncaughtExceptionHandler = uncaughtExceptionHandler;
-    }
-
-    @Override
-    public String getIdentity() {
-        return identity;
-    }
-
-    @Override
-    public void setIdentity(String identity) {
-        this.identity = identity;
-    }
-
-    @Override
-    public long getPollBackoffInitialInterval() {
-        return pollBackoffInitialInterval;
-    }
-
-    @Override
-    public void setPollBackoffInitialInterval(long backoffInitialInterval) {
-        if (backoffInitialInterval < 0) {
-            throw new IllegalArgumentException("expected value should be positive or 0: " + backoffInitialInterval);
-        }
-        this.pollBackoffInitialInterval = backoffInitialInterval;
-    }
-
-    @Override
-    public long getPollBackoffMaximumInterval() {
-        return pollBackoffMaximumInterval;
-    }
-
-    @Override
-    public void setPollBackoffMaximumInterval(long backoffMaximumInterval) {
-        if (backoffMaximumInterval <= 0) {
-            throw new IllegalArgumentException("expected value should be positive: " + backoffMaximumInterval);
-        }
-        this.pollBackoffMaximumInterval = backoffMaximumInterval;
-    }
-
-    /**
-     * @see #setDisableServiceShutdownOnStop(boolean)
-     */
-    @Override
-    public boolean isDisableServiceShutdownOnStop() {
-        return disableServiceShutdownOnStop;
-    }
-
-    /**
-     * By default when @{link {@link #shutdown()} or @{link
-     * {@link #shutdownNow()} is called the worker calls
-     * {@link AmazonSimpleWorkflow#shutdown()} on the service instance it is
-     * configured with before shutting down internal thread pools. Otherwise
-     * threads that are waiting on a poll request might block shutdown for the
-     * duration of a poll. This flag allows disabling this behavior.
-     *
-     * @param disableServiceShutdownOnStop
-     *            <code>true</code> means do not call
-     *            {@link AmazonSimpleWorkflow#shutdown()}
-     */
-    @Override
-    public void setDisableServiceShutdownOnStop(boolean disableServiceShutdownOnStop) {
-        this.disableServiceShutdownOnStop = disableServiceShutdownOnStop;
-    }
-
-    @Override
-    public double getPollBackoffCoefficient() {
-        return pollBackoffCoefficient;
-    }
-
-    @Override
-    public void setPollBackoffCoefficient(double backoffCoefficient) {
-        if (backoffCoefficient < 1.0) {
-            throw new IllegalArgumentException("expected value should be bigger or equal to 1.0: " + backoffCoefficient);
-        }
-        this.pollBackoffCoefficient = backoffCoefficient;
-    }
-
-    @Override
-    public int getPollThreadCount() {
-        return pollThreadCount;
-    }
-
-    @Override
-    public void setPollThreadCount(int threadCount) {
-        checkStarted();
-        this.pollThreadCount = threadCount;
-        /*
-            It is actually not very useful to have poll thread count
-            larger than execute thread count. Since execute thread count
-            is a new concept introduced since Flow-3.7, to make the
-            major version upgrade more friendly, try to bring the
-            execute thread count to match poll thread count if client
-            does not the set execute thread count explicitly.
-         */
-        if (this.executeThreadCount < threadCount) {
-            this.executeThreadCount = threadCount;
-        }
-    }
-
-    @Override
-    public int getExecuteThreadCount() {
-        return executeThreadCount;
-    }
-
-    @Override
-    public void setExecuteThreadCount(int threadCount) {
-        checkStarted();
-        this.executeThreadCount = threadCount;
-    }
-
-    @Override
-    public void setDisableTypeRegistrationOnStart(boolean disableTypeRegistrationOnStart) {
-        this.disableTypeRegistrationOnStart = disableTypeRegistrationOnStart;
-    }
-
-    @Override
-    public boolean isDisableTypeRegistrationOnStart() {
-        return disableTypeRegistrationOnStart;
-    }
-
-    @Override
     public void start() {
         if (log.isInfoEnabled()) {
-            log.info("start: " + toString());
+            log.info("start: " + this);
         }
         if (shutdownRequested.get()) {
             throw new IllegalStateException("Shutdown Requested. Not restartable.");
@@ -433,12 +293,13 @@ public abstract class GenericWorker<T> implements WorkerBase {
 
         workerExecutor = new ThreadPoolExecutor(executeThreadCount, executeThreadCount, 1, TimeUnit.MINUTES,
                 new SynchronousQueue<>(), new BlockCallerPolicy());
+        workerExecutor.allowCoreThreadTimeOut(allowCoreThreadTimeOut);
         ExecutorThreadFactory pollExecutorThreadFactory = getExecutorThreadFactory("Worker");
         workerExecutor.setThreadFactory(pollExecutorThreadFactory);
 
         pollingExecutor = new ScheduledThreadPoolExecutor(pollThreadCount, getExecutorThreadFactory("Poller"));
         for (int i = 0; i < pollThreadCount; i++) {
-            pollingExecutor.scheduleWithFixedDelay(new PollingTask(poller), 0, 1, TimeUnit.SECONDS);
+            pollingExecutor.scheduleWithFixedDelay(new PollingTask(poller), 0, 1, TimeUnit.NANOSECONDS);
         }
     }
 
@@ -457,8 +318,10 @@ public abstract class GenericWorker<T> implements WorkerBase {
             throw new IllegalStateException("required property domainRetentionPeriodInDays is not set");
         }
         try {
-            service.registerDomain(new RegisterDomainRequest().withName(domain).withWorkflowExecutionRetentionPeriodInDays(
-                    String.valueOf(domainRetentionPeriodInDays)));
+            RegisterDomainRequest request = new RegisterDomainRequest().withName(domain).withWorkflowExecutionRetentionPeriodInDays(
+                    String.valueOf(domainRetentionPeriodInDays));
+            RequestTimeoutHelper.overrideControlPlaneRequestTimeout(request, clientConfig);
+            service.registerDomain(request);
         }
         catch (DomainAlreadyExistsException e) {
             if (log.isTraceEnabled()) {
@@ -567,14 +430,6 @@ public abstract class GenericWorker<T> implements WorkerBase {
     }
 
     @Override
-    public String toString() {
-        return this.getClass().getSimpleName() + "[service=" + service + ", domain=" + domain + ", taskListToPoll="
-                + taskListToPoll + ", identity=" + identity + ", backoffInitialInterval=" + pollBackoffInitialInterval
-                + ", backoffMaximumInterval=" + pollBackoffMaximumInterval + ", backoffCoefficient=" + pollBackoffCoefficient
-                + "]";
-    }
-
-    @Override
     public boolean isRunning() {
         return isStarted() && !pollingExecutor.isTerminated() && !workerExecutor.isTerminated();
     }
@@ -619,4 +474,97 @@ public abstract class GenericWorker<T> implements WorkerBase {
         }
     }
 
+    /**
+     * Should domain be registered on startup. Default is <code>false</code>.
+     * When enabled {@link #setDomainRetentionPeriodInDays(long)} property is
+     * required.
+     */
+    @Override
+    public void setRegisterDomain(boolean registerDomain) {
+        this.registerDomain = registerDomain;
+    }
+
+    @Override
+    public void setPollBackoffInitialInterval(long backoffInitialInterval) {
+        if (backoffInitialInterval < 0) {
+            throw new IllegalArgumentException("expected value should be positive or 0: " + backoffInitialInterval);
+        }
+        this.pollBackoffInitialInterval = backoffInitialInterval;
+    }
+
+    @Override
+    public void setPollBackoffMaximumInterval(long backoffMaximumInterval) {
+        if (backoffMaximumInterval <= 0) {
+            throw new IllegalArgumentException("expected value should be positive: " + backoffMaximumInterval);
+        }
+        this.pollBackoffMaximumInterval = backoffMaximumInterval;
+    }
+
+    /**
+     * By default when @{link {@link #shutdown()} or @{link
+     * {@link #shutdownNow()} is called the worker calls
+     * {@link AmazonSimpleWorkflow#shutdown()} on the service instance it is
+     * configured with before shutting down internal thread pools. Otherwise
+     * threads that are waiting on a poll request might block shutdown for the
+     * duration of a poll. This flag allows disabling this behavior.
+     *
+     * @param disableServiceShutdownOnStop
+     *            <code>true</code> means do not call
+     *            {@link AmazonSimpleWorkflow#shutdown()}
+     */
+    @Override
+    public void setDisableServiceShutdownOnStop(boolean disableServiceShutdownOnStop) {
+        this.disableServiceShutdownOnStop = disableServiceShutdownOnStop;
+    }
+
+    @Override
+    public void setPollBackoffCoefficient(double backoffCoefficient) {
+        if (backoffCoefficient < 1.0) {
+            throw new IllegalArgumentException("expected value should be bigger or equal to 1.0: " + backoffCoefficient);
+        }
+        this.pollBackoffCoefficient = backoffCoefficient;
+    }
+
+    @Override
+    public void setPollThreadCount(int threadCount) {
+        checkStarted();
+        this.pollThreadCount = threadCount;
+        /*
+            It is actually not very useful to have poll thread count
+            larger than execute thread count. Since execute thread count
+            is a new concept introduced since Flow-3.7, to make the
+            major version upgrade more friendly, try to bring the
+            execute thread count to match poll thread count if client
+            does not the set execute thread count explicitly.
+         */
+        if (this.executeThreadCount < threadCount) {
+            this.executeThreadCount = threadCount;
+        }
+    }
+
+    @Override
+    public void setExecuteThreadCount(int threadCount) {
+        checkStarted();
+        this.executeThreadCount = threadCount;
+    }
+
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + "[service=" + service + ", domain=" + domain + ", taskListToPoll="
+                + taskListToPoll + ", identity=" + identity + ", backoffInitialInterval=" + pollBackoffInitialInterval
+                + ", backoffMaximumInterval=" + pollBackoffMaximumInterval + ", backoffCoefficient=" + pollBackoffCoefficient
+                + "]";
+    }
+
+    protected static ExponentialRetryParameters getRegisterTypeThrottledRetryParameters() {
+        ExponentialRetryParameters retryParameters = new ExponentialRetryParameters();
+        retryParameters.setBackoffCoefficient(2.0);
+        retryParameters.setExpirationInterval(TimeUnit.MINUTES.toMillis(10));
+        // Use a large base retry interval since this is built on top of SDK retry.
+        retryParameters.setInitialInterval(TimeUnit.SECONDS.toMillis(3));
+        retryParameters.setMaximumRetries(29);
+        retryParameters.setMaximumRetryInterval(TimeUnit.SECONDS.toMillis(20));
+        retryParameters.setMinimumRetries(1);
+        return retryParameters;
+    }
 }

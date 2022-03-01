@@ -336,7 +336,7 @@ class AsyncDecider {
             decisionsHelper.handleRequestCancelExternalWorkflowExecutionFailed(event);
             break;
         case StartChildWorkflowExecutionInitiated:
-            decisionsHelper.handleStartChildWorkflowExecutionInitiated(event);
+            workflowClient.handleChildWorkflowExecutionInitiated(event);
             break;
         case CancelTimerFailed:
             decisionsHelper.handleCancelTimerFailed(event);

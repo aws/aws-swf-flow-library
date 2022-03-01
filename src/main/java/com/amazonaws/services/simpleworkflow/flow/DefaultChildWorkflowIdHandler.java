@@ -12,16 +12,20 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.amazonaws.services.simpleworkflow.flow.generic;
+package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.flow.core.Promise;
+import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import java.util.function.Supplier;
 
+public class DefaultChildWorkflowIdHandler implements ChildWorkflowIdHandler {
 
-public interface StartChildWorkflowReply {
+    @Override
+    public String generateWorkflowId(WorkflowExecution currentWorkflow, Supplier<String> nextId) {
+        return String.format("%s:%s", currentWorkflow.getRunId(), nextId.get());
+    }
 
-    public String getWorkflowId();
-
-    public String getRunId();
-    
-    public Promise<String> getResult();
+    @Override
+    public String extractRequestedWorkflowId(String childWorkflowId) {
+        return childWorkflowId;
+    }
 }

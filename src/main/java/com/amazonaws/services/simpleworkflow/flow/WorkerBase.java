@@ -18,10 +18,13 @@ import java.lang.Thread.UncaughtExceptionHandler;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.annotations.SkipTypeRegistration;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 
 public interface WorkerBase extends SuspendableWorker {
 
     AmazonSimpleWorkflow getService();
+
+    SimpleWorkflowClientConfig getClientConfig();
 
     String getDomain();
 
@@ -140,11 +143,8 @@ public interface WorkerBase extends SuspendableWorker {
 
     /**
      * Defines how many concurrent threads are used by the given worker to poll
-     * the specified task list. Default is 1. Note that in case of
-     * {@link ActivityWorker} two separate threads pools are used. One for
-     * polling and another one for executing activities. The size of the
-     * activity execution thread pool is defined through
-     * {@link ActivityWorker#setTaskExecutorThreadPoolSize(int)}.
+     * the specified task list. Default is 1. The size of the task execution
+     * thread pool is defined through {@link #setExecuteThreadCount(int)}.
      */
     void setPollThreadCount(int threadCount);
 
@@ -176,5 +176,13 @@ public interface WorkerBase extends SuspendableWorker {
     void setDisableTypeRegistrationOnStart(boolean disableTypeRegistrationOnStart);
 
     boolean isDisableTypeRegistrationOnStart();
+
+    /**
+     * When set to true allows the task execution threads to terminate
+     * if they have been idle for 1 minute.
+     */
+    void setAllowCoreThreadTimeOut(boolean allowCoreThreadTimeOut);
+
+    boolean isAllowCoreThreadTimeOut();
 
 }

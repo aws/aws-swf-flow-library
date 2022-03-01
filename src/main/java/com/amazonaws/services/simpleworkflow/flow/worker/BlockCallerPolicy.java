@@ -18,12 +18,18 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 
 class BlockCallerPolicy implements RejectedExecutionHandler {
+    private static final Log log = LogFactory.getLog(BlockCallerPolicy.class);
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
         try {
+            log.warn("Execution rejected. Blocking and adding to queue. Thread: " + Thread.currentThread().getName());
+
             // block until there's room
             executor.getQueue().put(r);
         }

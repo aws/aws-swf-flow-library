@@ -14,6 +14,8 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
+import com.amazonaws.services.simpleworkflow.flow.ChildWorkflowIdHandler;
+import com.amazonaws.services.simpleworkflow.flow.DefaultChildWorkflowIdHandler;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -39,13 +41,13 @@ import com.amazonaws.services.simpleworkflow.model.WorkflowType;
  *
  */
 public class AsyncDecisionTaskHandler extends DecisionTaskHandler {
-	
-	static final String COMPONENT_VERSION_MARKER = "*component_version*";
-	 
+
+    static final String COMPONENT_VERSION_MARKER = "*component_version*";
+
     static final String COMPONENT_VERSION_RECORD_SEPARATOR = "\n";
- 
+
     static final String COMPONENT_VERSION_SEPARATOR = "\t";
- 
+
     static final String COMPONENT_VERSION_SEPARATORS_PATTERN = COMPONENT_VERSION_RECORD_SEPARATOR + "|"
             + COMPONENT_VERSION_SEPARATOR;
 
@@ -56,15 +58,26 @@ public class AsyncDecisionTaskHandler extends DecisionTaskHandler {
 
     private final WorkflowDefinitionFactoryFactory definitionFactoryFactory;
 
+    private final ChildWorkflowIdHandler childWorkflowIdHandler;
+
     private final boolean skipFailedCheck;
     
     public AsyncDecisionTaskHandler(WorkflowDefinitionFactoryFactory definitionFactoryFactory) {
         this(definitionFactoryFactory, false);
     }
-    
+
+    public AsyncDecisionTaskHandler(WorkflowDefinitionFactoryFactory definitionFactoryFactory, ChildWorkflowIdHandler childWorkflowIdHandler) {
+        this(definitionFactoryFactory, false, childWorkflowIdHandler);
+    }
+
     public AsyncDecisionTaskHandler(WorkflowDefinitionFactoryFactory definitionFactoryFactory, boolean skipFailedCheck) {
+        this(definitionFactoryFactory, skipFailedCheck, null);
+    }
+
+    public AsyncDecisionTaskHandler(WorkflowDefinitionFactoryFactory definitionFactoryFactory, boolean skipFailedCheck, ChildWorkflowIdHandler childWorkflowIdHandler) {
         this.definitionFactoryFactory = definitionFactoryFactory;
         this.skipFailedCheck = skipFailedCheck;
+        this.childWorkflowIdHandler = childWorkflowIdHandler != null ? childWorkflowIdHandler : new DefaultChildWorkflowIdHandler();
     }
 
     @Override
@@ -175,13 +188,12 @@ public class AsyncDecisionTaskHandler extends DecisionTaskHandler {
                     + "Possible cause is workflow type version change without changing task list name. "
                     + "Workflow types registered by the worker are: " + types.toString());
         }
-        DecisionsHelper decisionsHelper = new DecisionsHelper(decisionTask);
+        DecisionsHelper decisionsHelper = new DecisionsHelper(decisionTask, childWorkflowIdHandler);
         WorkflowTypeImplementationOptions workflowImplementationOptions = workflowDefinitionFactory.getWorkflowImplementationOptions();
         if (workflowImplementationOptions != null) {
             List<WorkflowTypeComponentImplementationVersion> implementationComponentVersions = workflowImplementationOptions.getImplementationComponentVersions();
             historyHelper.getComponentVersions().setWorkflowImplementationComponentVersions(implementationComponentVersions);
         }
-        AsyncDecider decider = new AsyncDecider(workflowDefinitionFactory, historyHelper, decisionsHelper);
-        return decider;
+        return new AsyncDecider(workflowDefinitionFactory, historyHelper, decisionsHelper);
     }
 }

@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.amazonaws</groupId>
   <artifactId>aws-java-sdk-swf-libraries</artifactId>
-  <version>1.11.24-SNAPSHOT</version>
+  <version>1.12.0</version>
   <packaging>jar</packaging>
   <name>Java Libraries for Amazon Simple WorkFlow</name>
   <description>This artifact contains the higher level libraries that can be used in Amazon Simple WorkFlow Service</description>
@@ -31,7 +31,7 @@
     <url>https://github.com/aws/aws-swf-flow-library.git</url>
   </scm>
   <properties>
-    <spring.version>5.2.9.RELEASE</spring.version>
+    <spring.version>5.3.14</spring.version>
     <freemarker.version>2.3.9</freemarker.version>
     <aspectj.version>1.8.2</aspectj.version>
     <jre.version>1.8</jre.version>
@@ -84,7 +84,27 @@
       <version>${aspectj.version}</version>
       <optional>true</optional>
     </dependency>
-    
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>1.18.22</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+      <version>2.13.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>2.13.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.13.1</version>
+    </dependency>
    <!-- JUnit is needed to compile the support classes for the workflow service -->
     <dependency>
       <groupId>junit</groupId>

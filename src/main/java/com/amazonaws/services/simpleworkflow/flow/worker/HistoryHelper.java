@@ -19,6 +19,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -31,37 +33,20 @@ class HistoryHelper {
 
     private static final Log historyLog = LogFactory.getLog(HistoryHelper.class.getName() + ".history");
 
+    @RequiredArgsConstructor
+    @Getter
     private class SingleDecisionData {
-        
+
         private final List<HistoryEvent> decisionEvents;
         private final long replayCurrentTimeMilliseconds;
         private final String workflowContextData;
-        
-        public SingleDecisionData(List<HistoryEvent> decisionEvents, long replayCurrentTimeMilliseconds,
-                String workflowContextData) {
-            this.decisionEvents = decisionEvents;
-            this.replayCurrentTimeMilliseconds = replayCurrentTimeMilliseconds;
-            this.workflowContextData = workflowContextData;
-        }
-        
-        public List<HistoryEvent> getDecisionEvents() {
-            return decisionEvents;
-        }
-        
-        public long getReplayCurrentTimeMilliseconds() {
-            return replayCurrentTimeMilliseconds;
-        }
-        
-        public String getWorkflowContextData() {
-            return workflowContextData;
-        }
-        
     }
-    
+
     class SingleDecisionEventsIterator implements Iterator<SingleDecisionData> {
 
         private final EventsIterator events;
- 
+
+        @Getter
         private final ComponentVersions componentVersions = new ComponentVersions();
 
         private String workflowContextData;
@@ -76,12 +61,12 @@ class HistoryHelper {
             current = next;
             fillNext();
         }
- 
+
         @Override
         public boolean hasNext() {
             return current != null;
         }
- 
+
         @Override
         public SingleDecisionData next() {
             SingleDecisionData result = current;
@@ -89,20 +74,16 @@ class HistoryHelper {
             fillNext();
             return result;
         }
- 
-        public ComponentVersions getComponentVersions() {
-            return componentVersions;
-        }
-        
+
         /**
          * Load events for the next decision. This method has to deal with the
          * following edge cases to support correct replay:
-         * 
+         *
          * <li>DecisionTaskTimedOut. The events for the next decision are the
          * ones from the currently processed decision DecisionTaskStarted event
          * to the next DecisionTaskStarted that is not followed by
          * DecisionTaskTimedOut.
-         * 
+         *
          * <li>Events that were added to a history during a decision. These
          * events appear between DecisionTaskStarted and DecisionTaskCompleted
          * events. They should be processed after all events that correspond to
@@ -161,16 +142,16 @@ class HistoryHelper {
             List<HistoryEvent> nextEvents = reorderEvents(decisionStartToCompletionEvents, decisionCompletionToStartEvents, lastDecisionIndex);
             next = new SingleDecisionData(nextEvents, nextReplayCurrentTimeMilliseconds, workflowContextData);
         }
- 
+
         public DecisionTask getDecisionTask() {
             return events.getDecisionTask();
         }
- 
+
         @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }
- 
+
         private boolean isDecisionEvent(EventType eventType) {
             switch (eventType) {
             case ActivityTaskScheduled:
@@ -202,7 +183,7 @@ class HistoryHelper {
                 return false;
             }
         }
- 
+
         /**
          * Reorder events to correspond to the order in which decider sees them.
          * The difference is that events that were added during decision task
@@ -210,10 +191,10 @@ class HistoryHelper {
          * decisions. Otherwise the replay is going to break.
          */
         private List<HistoryEvent> reorderEvents(List<HistoryEvent> decisionStartToCompletionEvents,
-                List<HistoryEvent> decisionCompletionToStartEvents, int lastDecisionIndex) {
+                                                 List<HistoryEvent> decisionCompletionToStartEvents, int lastDecisionIndex) {
             List<HistoryEvent> reordered;
             int size = decisionStartToCompletionEvents.size() + decisionStartToCompletionEvents.size();
- 
+
             reordered = new ArrayList<HistoryEvent>(size);
             // First are events that correspond to the previous task decisions
             if (lastDecisionIndex >= 0) {
@@ -228,7 +209,7 @@ class HistoryHelper {
             }
             return reordered;
         }
- 
+
         // Should be in sync with GenericWorkflowClientExternalImpl.getWorkflowState
         private void updateWorkflowContextDataAndComponentVersions(String executionContext) {
             if (executionContext != null && executionContext.startsWith(AsyncDecisionTaskHandler.COMPONENT_VERSION_MARKER)) {
@@ -251,15 +232,17 @@ class HistoryHelper {
                 workflowContextData = executionContext;
             }
         }
- 
+
     }
 
     class EventsIterator implements Iterator<HistoryEvent> {
 
         private final Iterator<DecisionTask> decisionTasks;
 
+        @Getter
         private DecisionTask decisionTask;
 
+        @Getter
         private List<HistoryEvent> events;
 
         private int index;
@@ -296,23 +279,15 @@ class HistoryHelper {
             return events.get(index++);
         }
 
-        public DecisionTask getDecisionTask() {
-            return decisionTask;
-        }
-
-        public List<HistoryEvent> getEvents() {
-            return events;
-        }
-
         @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }
 
     }
-    
+
     private final SingleDecisionEventsIterator singleDecisionEventsIterator;
-    
+
     private SingleDecisionData currentDecisionData;
 
     public HistoryHelper(Iterator<DecisionTask> decisionTasks) {
@@ -331,21 +306,21 @@ class HistoryHelper {
     public DecisionTask getDecisionTask() {
         return singleDecisionEventsIterator.getDecisionTask();
     }
-    
+
     public String getWorkflowContextData() {
         if (currentDecisionData == null) {
             throw new IllegalStateException();
         }
         return currentDecisionData.getWorkflowContextData();
     }
- 
+
     public long getReplayCurrentTimeMilliseconds() {
         if (currentDecisionData == null) {
             throw new IllegalStateException();
         }
         return currentDecisionData.getReplayCurrentTimeMilliseconds();
     }
- 
+
     public ComponentVersions getComponentVersions() {
         return singleDecisionEventsIterator.getComponentVersions();
     }

@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowDefinitionFactoryFactory;
 import com.amazonaws.services.simpleworkflow.flow.worker.GenericWorkflowWorker;
 import com.amazonaws.services.simpleworkflow.model.WorkflowType;
@@ -38,11 +39,20 @@ public class WorkflowWorker implements WorkerBase {
         this(new GenericWorkflowWorker(service, domain, taskListToPoll));
     }
 
+    public WorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+        this(new GenericWorkflowWorker(service, domain, taskListToPoll, config));
+    }
+
     public WorkflowWorker(GenericWorkflowWorker genericWorker) {
         Objects.requireNonNull(genericWorker,"the workflow worker is required");
         this.genericWorker = genericWorker;
         this.factoryFactory =  new POJOWorkflowDefinitionFactoryFactory();
         this.genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
+    }
+
+    @Override
+    public SimpleWorkflowClientConfig getClientConfig() {
+        return genericWorker.getClientConfig();
     }
 
     @Override
@@ -162,6 +172,16 @@ public class WorkflowWorker implements WorkerBase {
     }
 
     @Override
+    public boolean isAllowCoreThreadTimeOut() {
+        return genericWorker.isAllowCoreThreadTimeOut();
+    }
+
+    @Override
+    public void setAllowCoreThreadTimeOut(boolean allowCoreThreadTimeOut) {
+        genericWorker.setAllowCoreThreadTimeOut(allowCoreThreadTimeOut);
+    }
+
+    @Override
     public double getPollBackoffCoefficient() {
         return genericWorker.getPollBackoffCoefficient();
     }
@@ -190,6 +210,10 @@ public class WorkflowWorker implements WorkerBase {
     @Override
     public void setExecuteThreadCount(int threadCount) {
         genericWorker.setExecuteThreadCount(threadCount);
+    }
+
+    public void setChildWorkflowIdHandler(ChildWorkflowIdHandler childWorkflowIdHandler) {
+        genericWorker.setChildWorkflowIdHandler(childWorkflowIdHandler);
     }
 
     @Override

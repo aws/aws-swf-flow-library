@@ -14,20 +14,23 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
+import java.util.Random;
+
 /**
- * This interface is for internal use only and may be changed or removed without prior notice.
+ * This class is for internal use only and may be changed or removed without prior notice.
+ *
  */
-public interface TaskPoller<T>  {
+public class BackoffThrottlerWithJitter extends BackoffThrottler {
 
-    T poll() throws InterruptedException;
+    private final Random rand = new Random();
 
-    void execute(T task) throws Exception;
+    public BackoffThrottlerWithJitter(long initialSleep, long maxSleep, double backoffCoefficient) {
+        super(initialSleep, maxSleep, backoffCoefficient);
+    }
 
-    void suspend();
-
-    void resume();
-
-    boolean isSuspended();
-
-    SuspendableSemaphore getPollingSemaphore();
+    @Override
+    protected long calculateSleepTime() {
+        int delay = (int) (2 * initialSleep * Math.pow(backoffCoefficient, failureCount.get() - 1));
+        return Math.min(2 * maxSleep, rand.nextInt(delay));
+    }
 }

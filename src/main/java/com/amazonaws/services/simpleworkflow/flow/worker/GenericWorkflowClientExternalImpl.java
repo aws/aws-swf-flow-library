@@ -21,6 +21,8 @@ import java.util.UUID;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
+import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClientExternal;
 import com.amazonaws.services.simpleworkflow.flow.generic.SignalExternalWorkflowParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.StartWorkflowExecutionParameters;
@@ -41,9 +43,16 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
 
     private final AmazonSimpleWorkflow service;
 
+    private SimpleWorkflowClientConfig config;
+
     public GenericWorkflowClientExternalImpl(AmazonSimpleWorkflow service, String domain) {
+        this(service, domain, null);
+    }
+
+    public GenericWorkflowClientExternalImpl(AmazonSimpleWorkflow service, String domain, SimpleWorkflowClientConfig config) {
         this.service = service;
         this.domain = domain;
+        this.config = config;
     }
 
     @Override
@@ -68,6 +77,7 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
         }
         request.setLambdaRole(startParameters.getLambdaRole());
 
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         Run result = service.startWorkflowExecution(request);
         WorkflowExecution execution = new WorkflowExecution().withRunId(result.getRunId()).withWorkflowId(request.getWorkflowId());
 
@@ -84,6 +94,7 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
         request.setRunId(signalParameters.getRunId());
         request.setWorkflowId(signalParameters.getWorkflowId());
 
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.signalWorkflowExecution(request);
     }
 
@@ -94,7 +105,8 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
 
         request.setRunId(execution.getRunId());
         request.setWorkflowId(execution.getWorkflowId());
-        
+
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.requestCancelWorkflowExecution(request);
     }
 
@@ -151,6 +163,8 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
         DescribeWorkflowExecutionRequest request = new DescribeWorkflowExecutionRequest();
         request.setDomain(domain);
         request.setExecution(execution);
+
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         WorkflowExecutionDetail details = service.describeWorkflowExecution(request);
         String executionContext = details.getLatestExecutionContext();
         return executionContext;
@@ -166,6 +180,8 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
         request.setDetails(terminateParameters.getDetails());
         request.setReason(terminateParameters.getReason());
         request.setChildPolicy(terminateParameters.getChildPolicy());
+
+        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.terminateWorkflowExecution(request);
     }
 }

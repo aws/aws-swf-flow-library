@@ -25,12 +25,11 @@ abstract class DecisionStateMachineBase implements DecisionStateMachine {
 
     protected List<String> stateHistory = new ArrayList<String>();
 
-    private final DecisionId id;
+    protected DecisionId id;
 
     public DecisionStateMachineBase(DecisionId id) {
         this.id = id;
         stateHistory.add(state.toString());
-
     }
 
     /**
