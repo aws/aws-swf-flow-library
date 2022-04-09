@@ -32,7 +32,7 @@ import com.amazonaws.services.simpleworkflow.flow.interceptors.RetryDecorator;
  * To allow retries for an individual activity, place the annotation on the desired 
  * activity method in the corresponding @Activities <b>interface</b>.  Since a new
  * activity instance is started per retry, any timeouts configured on the 
- * @ActivityRegistrationOptions apply to each individual retry of the activity.
+ * {@literal @}ActivityRegistrationOptions apply to each individual retry of the activity.
  * <p>
  * To allow retries for an entire workflow, place the annotation on the override
  * of the workflow's @Execute method in the @Workflow's <b>implementation</b>

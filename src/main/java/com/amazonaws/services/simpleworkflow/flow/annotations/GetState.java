@@ -31,7 +31,7 @@ import com.amazonaws.services.simpleworkflow.flow.core.Promise;
  * Method is expected to have empty list of parameters.
  * {@link Promise} or <code>void</code> return types are not allowed for the annotated method.
  * 
- * The generated external client implementation uses {@link AmazonSimpleWorkflow#describeWorkflowExecution(com.amazonaws.services.simpleworkflow.model.DescribeWorkflowExecutionRequest) 
+ * The generated external client implementation uses {@link AmazonSimpleWorkflow#describeWorkflowExecution(com.amazonaws.services.simpleworkflow.model.DescribeWorkflowExecutionRequest)}
  * visibility API to retrieve the state. It allows access to the sate using external client if decider 
  * workers are down and even after workflow execution completion.
  * 

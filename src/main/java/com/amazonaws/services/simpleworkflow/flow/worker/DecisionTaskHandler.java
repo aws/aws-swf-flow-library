@@ -16,9 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.core.AsyncTaskInfo;
 import com.amazonaws.services.simpleworkflow.model.DecisionTask;
 import com.amazonaws.services.simpleworkflow.model.RespondDecisionTaskCompletedRequest;
@@ -35,13 +33,9 @@ public abstract class DecisionTaskHandler {
 
     /**
      * The implementation should be called when a polling SWF Decider receives a
-     * new WorkflowTask. Later, that decider should call one of
-     * {@link #respondWorkflowTaskCompleted(String, Transition, AmazonSimpleWorkflow)}
-     * or
-     * {@link #respondWorkflowTaskFailed(String, int, String, Map, AmazonSimpleWorkflow)}
-     * .
-     * 
-     * @param workflowTask
+     * new WorkflowTask.
+     *
+     * @param decisionTaskIterator
      *            The decision task to handle. The reason for more then one task
      *            being received is pagination of the history. All tasks in the
      *            iterator contain the same information but different pages of

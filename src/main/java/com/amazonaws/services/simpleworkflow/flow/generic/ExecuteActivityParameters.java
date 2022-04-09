@@ -36,8 +36,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Returns the value of the Control property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>0 - 100000<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>0 - 100000
      *
      * @return The value of the Control property for this object.
      */
@@ -48,8 +48,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Sets the value of the Control property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>0 - 100000<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>0 - 100000
      *
      * @param control The new value for the Control property for this object.
      */
@@ -62,8 +62,8 @@ public class ExecuteActivityParameters implements Cloneable {
      * <p>
      * Returns a reference to this object so that method calls can be chained together.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>0 - 100000<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>0 - 100000
      *
      * @param control The new value for the Control property for this object.
      *
@@ -112,8 +112,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Returns the value of the ActivityId property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @return The value of the ActivityId property for this object.
      */
@@ -124,8 +124,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Sets the value of the ActivityId property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @param activityId The new value for the ActivityId property for this object.
      */
@@ -138,8 +138,8 @@ public class ExecuteActivityParameters implements Cloneable {
      * <p>
      * Returns a reference to this object so that method calls can be chained together.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @param activityId The new value for the ActivityId property for this object.
      *
@@ -155,8 +155,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Returns the value of the Input property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>0 - 100000<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>0 - 100000
      *
      * @return The value of the Input property for this object.
      */
@@ -167,8 +167,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Sets the value of the Input property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>0 - 100000<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>0 - 100000
      *
      * @param input The new value for the Input property for this object.
      */
@@ -181,8 +181,8 @@ public class ExecuteActivityParameters implements Cloneable {
      * <p>
      * Returns a reference to this object so that method calls can be chained together.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>0 - 100000<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>0 - 100000
      *
      * @param input The new value for the Input property for this object.
      *
@@ -213,8 +213,8 @@ public class ExecuteActivityParameters implements Cloneable {
      * Returns the value of the ScheduleToStartTimeout property for this
      * object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @return The value of the ScheduleToStartTimeout property for this object.
      */
@@ -225,8 +225,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Sets the value of the ScheduleToStartTimeout property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @param scheduleToStartTimeoutSeconds The new value for the ScheduleToStartTimeout property for this object.
      */
@@ -239,8 +239,8 @@ public class ExecuteActivityParameters implements Cloneable {
      * <p>
      * Returns a reference to this object so that method calls can be chained together.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @param scheduleToStartTimeoutSeconds The new value for the ScheduleToStartTimeout property for this object.
      *
@@ -257,8 +257,8 @@ public class ExecuteActivityParameters implements Cloneable {
      * Returns the value of the ScheduleToCloseTimeout property for this
      * object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @return The value of the ScheduleToCloseTimeout property for this object.
      */
@@ -269,8 +269,8 @@ public class ExecuteActivityParameters implements Cloneable {
     /**
      * Sets the value of the ScheduleToCloseTimeout property for this object.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @param scheduleToCloseTimeoutSeconds The new value for the ScheduleToCloseTimeout property for this object.
      */
@@ -283,8 +283,8 @@ public class ExecuteActivityParameters implements Cloneable {
      * <p>
      * Returns a reference to this object so that method calls can be chained together.
      * <p>
-     * <b>Constraints:</b><br/>
-     * <b>Length: </b>1 - 64<br/>
+     * <b>Constraints:</b>
+     * <b>Length: </b>1 - 64
      *
      * @param scheduleToCloseTimeoutSeconds The new value for the ScheduleToCloseTimeout property for this object.
      *

@@ -100,7 +100,7 @@ public final class FlowHelpers {
     
     /**
      * Returns array of parameter values which is the same as values if types
-     * and values parameter have the same size. If values is shorter then types
+     * and values parameter have the same size. If values is shorter than types
      * then missing elements of returned array are filled with default values.
      * <p>
      * Used to support backward compatible changes in activities and workflow

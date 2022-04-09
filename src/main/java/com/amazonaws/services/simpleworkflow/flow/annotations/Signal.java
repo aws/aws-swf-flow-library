@@ -19,17 +19,19 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import com.amazonaws.services.simpleworkflow.flow.WorkflowWorker;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 
 /**
- * @Signal annotation is used on methods of interface annotated with {@link Workflow}
+ * {@literal @}Signal annotation is used on methods of interface annotated with {@link Workflow}
  * to specify the method to invoke when a particular signal is received by workflow
  * execution with a matching name.
  * 
- * @Signal methods are not allowed to have {@link Promise} parameters types and can
+ * {@literal @}Signal methods are not allowed to have {@link Promise} parameters types and can
  * only have <code>void</code> as return types.
  * 
- * @see Workflow, WorkflowWorker
+ * @see Workflow
+ * @see WorkflowWorker
  * @author fateev, samar
  *
  */
