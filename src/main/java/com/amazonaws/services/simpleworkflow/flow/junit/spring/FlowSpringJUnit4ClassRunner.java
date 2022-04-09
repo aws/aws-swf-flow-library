@@ -27,8 +27,8 @@ import com.amazonaws.services.simpleworkflow.flow.junit.WorkflowTestBase;
 
 /**
  * To be used instead of {@link SpringJUnit4ClassRunner} when testing
- * asynchronous code. Requires {@link SpringWorkflowTest} rule (annotated with
- * @Rule) to be present in the tested class.
+ * asynchronous code. Requires {@link SpringWorkflowTest} rule (annotated with @Rule)
+ * to be present in the tested class.
  * 
  * @author fateev
  */

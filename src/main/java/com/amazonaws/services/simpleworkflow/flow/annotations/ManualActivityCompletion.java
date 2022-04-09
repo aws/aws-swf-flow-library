@@ -20,13 +20,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @ManualActivityCompletion is an optional annotation meant to be used on 
+ * {@literal @}ManualActivityCompletion is an optional annotation meant to be used on
  * implementations of activity methods to mark them to be completed 
  * asynchronously.
  * 
  * If this annotation is specified on an activity implementation method, then 
  * Flow Framework will not try to automatically complete this activity when 
- * method returns.  If this method have a return type then return value 
+ * method returns.  If this method has a return type then return value
  * from the method is ignored.
  * 
  * @author fateev, samar

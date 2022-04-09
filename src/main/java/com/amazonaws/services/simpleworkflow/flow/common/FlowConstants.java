@@ -27,8 +27,8 @@ public final class FlowConstants {
     public static final String NO_DEFAULT_TASK_LIST = "NO_DEFAULT_TASK_LIST";
 
     /**
-     * Use task list of the {@link ActivityWorker} or {@link WorkflowWorker}
-     * that is used to register activity or workflow as the defalt task list for
+     * Use task list of the {@link com.amazonaws.services.simpleworkflow.flow.ActivityWorker} or {@link com.amazonaws.services.simpleworkflow.flow.WorkflowWorker}
+     * that is used to register activity or workflow as the default task list for
      * the activity or workflow type.
      */
     public static final String USE_WORKER_TASK_LIST = "USE_WORKER_TASK_LIST";

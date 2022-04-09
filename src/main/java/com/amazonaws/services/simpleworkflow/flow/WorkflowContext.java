@@ -59,7 +59,6 @@ public interface WorkflowContext {
      * <p>
      * This method is created to enable workflow updates without changing their
      * type version. The code changes should follow the following pattern:
-     * <p>
      *
      * <pre>
      * if (workflowContext.isImplementationVersion(COMPONENT_NAME, 5)) {
@@ -92,7 +91,6 @@ public interface WorkflowContext {
      * call to isVersion happens in the part of the workflow that has already
      * executed the second call to isVersion returns <code>false</code> even if
      * it is executed for the first time.
-     * <p>
      *
      * <pre>
      * if (workflowContext.isImplementationVersion(&quot;comp1&quot;, 1)) {

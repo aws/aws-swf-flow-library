@@ -30,7 +30,10 @@ import com.amazonaws.services.simpleworkflow.flow.WorkflowWorker;
  * Registration of types is skipped by {@link ActivityWorker} or {@link WorkflowWorker}
  * when interface is annotated with @SkipTypeRegistration.
  * 
- * @see Activities, Workflow, ActivityWorker, WorkflowWorker
+ * @see Activities
+ * @see Workflow
+ * @see ActivityWorker
+ * @see WorkflowWorker
  * @author fateev, samar
  *
  */

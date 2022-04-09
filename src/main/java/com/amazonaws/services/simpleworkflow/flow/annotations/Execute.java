@@ -19,16 +19,18 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import com.amazonaws.services.simpleworkflow.flow.WorkflowWorker;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 
 /**
- * @Execute annotation is used on methods of interface annotated with {@link Workflow} 
+ * {@literal @}Execute annotation is used on methods of interface annotated with {@link Workflow}
  * to specify the entry-point for WorkflowType.  
  * 
- * @Execute method can only have <code>void</code> or {@link Promise} return types.
+ * {@literal @}Execute method can only have <code>void</code> or {@link Promise} return types.
  * Parameters of type {@link Promise} are not allowed.
  * 
- * @see Workflow, WorkflowWorker
+ * @see Workflow
+ * @see WorkflowWorker
  * @author fateev, samar
  * 
  */

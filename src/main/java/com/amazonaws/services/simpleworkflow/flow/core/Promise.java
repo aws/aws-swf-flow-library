@@ -82,7 +82,7 @@ public abstract class Promise<V> {
      * Convenience method for creating a Promise object which is in ready state
      * and returns the passed in value when get() is called.
      * <p>
-     * The same as <code>new {@link Settable}<T>(value)</code>
+     * The same as <code>new {@link Settable}&lt;T&gt;(value)</code>
      * 
      * @param <T>
      *            Type of value
@@ -95,7 +95,7 @@ public abstract class Promise<V> {
     }
 
     /**
-     * This is a factory method to create a Promise<Void> object in ready state.
+     * This is a factory method to create a Promise&lt;Void&gt; object in ready state.
      * 
      * @return An instance of Promise object with no value.
      */

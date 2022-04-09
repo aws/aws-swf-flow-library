@@ -57,9 +57,8 @@ public abstract class WorkflowDefinition {
      * that is used to execute workflow. It means that non handled failure
      * inside this method causes workflow execution failure.
      * 
-     * @throws Exception
+     * @throws WorkflowException
      *             Prefer throwing {@link WorkflowException}.
-     * @throws Exception
      */
     public abstract void signalRecieved(String signalName, String input) throws WorkflowException;
 
@@ -77,7 +76,8 @@ public abstract class WorkflowDefinition {
      * allowed to modify state of workflow in any way.
      * 
      * @return current state of the workflow execution.
-     * @throws WorkflowException 
+     * @throws WorkflowException
+     *             Prefer throwing {@link WorkflowException}.
      */
     public abstract String getWorkflowState() throws WorkflowException;
 

@@ -26,11 +26,11 @@ import com.amazonaws.services.simpleworkflow.flow.core.Task;
  * To avoid overload conflicts "WaitFor" postfix is used for methods that define
  * varargs "waitFor" argument.
  * <p>
- * For example when </code>AsyncAssert.assertEquals("expected", "expected",
+ * For example when <code>AsyncAssert.assertEquals("expected", "expected",
  * waitForMe)</code> is called Java resolves it to
- * <code>void assertEquals(final String message, final Object expected, final Promise<?> actual)</code>
+ * <code>void assertEquals(final String message, final Object expected, final Promise&lt;?&gt; actual)</code>
  * when
- * <code>void assertEquals(final Object expected, final Object actual, Promise<?>... waitFor)</code>
+ * <code>void assertEquals(final Object expected, final Object actual, Promise&lt;?&gt;... waitFor)</code>
  * was assumed.
  * 
  * 

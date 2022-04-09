@@ -61,7 +61,7 @@ public class WorkflowExecutionUtils {
      * 
      * @param workflowExecution
      *            result of
-     *            {@link AmazonSimpleWorkflow#startWorkflowInstance(com.amazonaws.services.simpleworkflow.model.StartWorkflowInstanceRequest)}
+     *            {@link AmazonSimpleWorkflow#startWorkflowExecution(com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest)}
      * @return workflow instance result.
      * @throws InterruptedException
      *             if thread is interrupted
@@ -91,7 +91,7 @@ public class WorkflowExecutionUtils {
      * 
      * @param workflowExecution
      *            result of
-     *            {@link AmazonSimpleWorkflow#startWorkflowInstance(com.amazonaws.services.simpleworkflow.model.StartWorkflowInstanceRequest)}
+     *            {@link AmazonSimpleWorkflow#startWorkflowExecution(com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest)}
      * @return workflow instance result.
      * @throws InterruptedException
      *             if thread is interrupted
@@ -119,7 +119,7 @@ public class WorkflowExecutionUtils {
 
     /**
      * Returns result of workflow instance execution. result of
-     * {@link AmazonSimpleWorkflow#startWorkflowInstance(com.amazonaws.services.simpleworkflow.model.StartWorkflowInstanceRequest)}
+     * {@link AmazonSimpleWorkflow#startWorkflowExecution(com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest)}
      * 
      * @throws IllegalStateException
      *             if workflow is still running
@@ -261,7 +261,7 @@ public class WorkflowExecutionUtils {
      * 
      * @param workflowExecution
      *            result of
-     *            {@link AmazonSimpleWorkflow#startWorkflowInstance(com.amazonaws.services.simpleworkflow.model.StartWorkflowInstanceRequest)}
+     *            {@link AmazonSimpleWorkflow#startWorkflowExecution(com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest)}
      * @return instance close status
      */
     public static String waitForWorkflowInstanceCompletion(AmazonSimpleWorkflow service, String domain,
@@ -286,7 +286,7 @@ public class WorkflowExecutionUtils {
      * 
      * @param workflowExecution
      *            result of
-     *            {@link AmazonSimpleWorkflow#startWorkflowInstance(com.amazonaws.services.simpleworkflow.model.StartWorkflowInstanceRequest)}
+     *            {@link AmazonSimpleWorkflow#startWorkflowExecution(com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest)}
      * @param timeoutSeconds
      *            maximum time to wait for completion. 0 means wait forever.
      * @return instance close status
@@ -412,7 +412,7 @@ public class WorkflowExecutionUtils {
      * 
      * @param workflowExecution
      *            result of
-     *            {@link AmazonSimpleWorkflow#startWorkflowInstance(com.amazonaws.services.simpleworkflow.model.StartWorkflowInstanceRequest)}
+     *            {@link AmazonSimpleWorkflow#startWorkflowExecution(com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest)}
      */
     public static String prettyPrintHistory(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution) {
         return prettyPrintHistory(service, domain, workflowExecution, null);
@@ -427,7 +427,7 @@ public class WorkflowExecutionUtils {
      * 
      * @param workflowExecution
      *            result of
-     *            {@link AmazonSimpleWorkflow#startWorkflowInstance(com.amazonaws.services.simpleworkflow.model.StartWorkflowInstanceRequest)}
+     *            {@link AmazonSimpleWorkflow#startWorkflowExecution(com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest)}
      * @param showWorkflowTasks
      *            when set to false workflow task events (decider events) are
      *            not included
@@ -503,7 +503,7 @@ public class WorkflowExecutionUtils {
     /**
      * Returns workflow instance history in a human readable format.
      * 
-     * @history Workflow instance history
+     * @param history instance history
      * @param showWorkflowTasks
      *            when set to false workflow task events (decider events) are
      *            not included
@@ -568,7 +568,7 @@ public class WorkflowExecutionUtils {
     /**
      * Returns single decision in a human readable format
      * 
-     * @param event
+     * @param decision
      *            event to pretty print
      */
     public static String prettyPrintDecision(Decision decision) {

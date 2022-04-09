@@ -24,7 +24,7 @@ import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 * to the nextRetryDelaySeconds output. The jitter is the value of baseDelay multiplied with a random
 * coefficient between 0 and maxJitterCoefficient. And the jitter could randomly be positive or negative:
 * <p>
-* -(baseDelay * maxJitterCoefficient) <= jitter < (baseDelay * maxJitterCoefficient)
+* -(baseDelay * maxJitterCoefficient) &lt;= jitter &lt; (baseDelay * maxJitterCoefficient)
 * </p>
 * Since maxJitterCoefficient is exclusively between 0 and 1, the absolute value of jitter is always
 * smaller than the baseDelay.
