@@ -1,0 +1,16 @@
+com.amazonaws.services.simpleworkflow.flow
+com.amazonaws.services.simpleworkflow.flow.annotations
+com.amazonaws.services.simpleworkflow.flow.aspectj
+com.amazonaws.services.simpleworkflow.flow.common
+com.amazonaws.services.simpleworkflow.flow.config
+com.amazonaws.services.simpleworkflow.flow.core
+com.amazonaws.services.simpleworkflow.flow.generic
+com.amazonaws.services.simpleworkflow.flow.interceptors
+com.amazonaws.services.simpleworkflow.flow.junit
+com.amazonaws.services.simpleworkflow.flow.junit.spring
+com.amazonaws.services.simpleworkflow.flow.pojo
+com.amazonaws.services.simpleworkflow.flow.replaydeserializer
+com.amazonaws.services.simpleworkflow.flow.retry
+com.amazonaws.services.simpleworkflow.flow.spring
+com.amazonaws.services.simpleworkflow.flow.test
+com.amazonaws.services.simpleworkflow.flow.worker

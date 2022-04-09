@@ -1,0 +1,14 @@
+-Xajruntimetarget:1.5
+-1.8
+-encoding
+UTF-8
+-source
+1.8
+-target
+1.8
+-classpath
+/Users/weirkong/.m2/repository/com/amazonaws/aws-java-sdk-simpleworkflow/1.11.283/aws-java-sdk-simpleworkflow-1.11.283.jar:/Users/weirkong/.m2/repository/com/amazonaws/aws-java-sdk-s3/1.11.283/aws-java-sdk-s3-1.11.283.jar:/Users/weirkong/.m2/repository/org/freemarker/freemarker/2.3.9/freemarker-2.3.9.jar:/Users/weirkong/.m2/repository/org/springframework/spring-beans/5.3.14/spring-beans-5.3.14.jar:/Users/weirkong/.m2/repository/org/springframework/spring-core/5.3.14/spring-core-5.3.14.jar:/Users/weirkong/.m2/repository/org/springframework/spring-context/5.3.14/spring-context-5.3.14.jar:/Users/weirkong/.m2/repository/org/springframework/spring-test/5.3.14/spring-test-5.3.14.jar:/Users/weirkong/.m2/repository/org/aspectj/aspectjrt/1.8.7/aspectjrt-1.8.7.jar:/Users/weirkong/.m2/repository/org/projectlombok/lombok/1.18.22/lombok-1.18.22.jar:/Users/weirkong/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.13.1/jackson-annotations-2.13.1.jar:/Users/weirkong/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.13.1/jackson-core-2.13.1.jar:/Users/weirkong/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.13.1/jackson-databind-2.13.1.jar:/Users/weirkong/.m2/repository/junit/junit/4.13.1/junit-4.13.1.jar:/Users/weirkong/.m2/repository/com/amazonaws/aws-java-sdk-core/1.11.283/aws-java-sdk-core-1.11.283.jar:/Users/weirkong/.m2/repository/commons-logging/commons-logging/1.1.3/commons-logging-1.1.3.jar:/Users/weirkong/.m2/repository/org/apache/httpcomponents/httpclient/4.5.2/httpclient-4.5.2.jar:/Users/weirkong/.m2/repository/org/apache/httpcomponents/httpcore/4.4.4/httpcore-4.4.4.jar:/Users/weirkong/.m2/repository/commons-codec/commons-codec/1.9/commons-codec-1.9.jar:/Users/weirkong/.m2/repository/software/amazon/ion/ion-java/1.0.2/ion-java-1.0.2.jar:/Users/weirkong/.m2/repository/com/fasterxml/jackson/dataformat/jackson-dataformat-cbor/2.6.7/jackson-dataformat-cbor-2.6.7.jar:/Users/weirkong/.m2/repository/joda-time/joda-time/2.8.1/joda-time-2.8.1.jar:/Users/weirkong/.m2/repository/com/amazonaws/jmespath-java/1.11.283/jmespath-java-1.11.283.jar:/Users/weirkong/.m2/repository/com/amazonaws/aws-java-sdk-kms/1.11.283/aws-java-sdk-kms-1.11.283.jar:/Users/weirkong/.m2/repository/org/springframework/spring-jcl/5.3.14/spring-jcl-5.3.14.jar:/Users/weirkong/.m2/repository/org/springframework/spring-aop/5.3.14/spring-aop-5.3.14.jar:/Users/weirkong/.m2/repository/org/springframework/spring-expression/5.3.14/spring-expression-5.3.14.jar:/Users/weirkong/.m2/repository/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar:/Users/weirkong/aws-swf-flow-library/target/classes
+-inpath
+/Users/weirkong/aws-swf-flow-library/target/classes
+-d
+/Users/weirkong/aws-swf-flow-library/target/classes

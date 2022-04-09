@@ -14,7 +14,6 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import java.util.Map;
 import java.util.concurrent.CancellationException;
 
 import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
@@ -50,17 +49,13 @@ public abstract class ActivityImplementation {
     public abstract ActivityTypeExecutionOptions getExecutionOptions();
 
     /**
-     * Execute external activity or initiate its execution if
-     * {@link #isManualActivityCompletion()} is <code>true</code>.
+     * Execute external activity or initiate its execution .
      * 
-     * @param task
+     * @param context
      *            information about activity to be executed. Use
      *            {@link ActivityTask#getInput()} to get activity input
      *            arguments.
-     * @return result of activity execution if {@link #isManualActivityCompletion()} is set
-     *         to false. Use
-     *         {@link ActivityWorker#respondActivityTaskCompleted(String, Map)}
-     *         to return result in asynchronous case.
+     * @return result of activity execution.
      */
     public abstract String execute(ActivityExecutionContext context) throws ActivityFailureException, CancellationException;
 

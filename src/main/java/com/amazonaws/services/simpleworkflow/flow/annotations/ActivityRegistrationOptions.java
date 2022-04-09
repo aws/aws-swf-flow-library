@@ -24,7 +24,7 @@ import com.amazonaws.services.simpleworkflow.flow.ActivityWorker;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 
 /**
- * @ActivityRegistrationOptions is a required annotation, unless 
+ * {@literal @}ActivityRegistrationOptions is a required annotation, unless
  * {@link SkipTypeRegistration} is provided, on either interface annotated with 
  * {@link Activities} or activity method.
  * 
