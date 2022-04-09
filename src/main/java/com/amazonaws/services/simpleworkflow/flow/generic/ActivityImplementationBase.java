@@ -14,13 +14,11 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import java.util.Map;
 import java.util.concurrent.CancellationException;
 
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
 import com.amazonaws.services.simpleworkflow.flow.ActivityWorker;
-import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeExecutionOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeRegistrationOptions;
 import com.amazonaws.services.simpleworkflow.model.ActivityTask;
@@ -28,7 +26,7 @@ import com.amazonaws.services.simpleworkflow.model.ActivityTask;
 /**
  * Extend this class to implement an activity. There are two types of activity
  * implementation: synchronous and asynchronous. Synchronous ties thread that
- * calls {@link #execute(Map, ActivityExecutionContext)} method.
+ * calls {@link #execute(String, ActivityExecutionContext)} method.
  * 
  * @see ActivityWorker
  * 
@@ -61,16 +59,9 @@ public abstract class ActivityImplementationBase extends ActivityImplementation 
 
     /**
      * Execute activity.
-     * 
-     * @see #isManualActivityCompletion()
-     * 
      * @param input
      *            activity input.
      * @return result of activity execution
-     * @throws Exception
-     *             any other exception is converted to status, reason and
-     *             details using
-     *             {@link DataConverter#failureToTaskFailed(Throwable)}.
      */
 
     protected abstract String execute(String input, ActivityExecutionContext context) 

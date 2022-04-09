@@ -337,10 +337,10 @@ public class WorkflowWorker implements WorkerBase {
     }
 
     /**
-     * @see WorkflowComponentImplementationVersion
+     * @see com.amazonaws.services.simpleworkflow.flow.annotations.WorkflowComponentImplementationVersion
      * @param maximumAllowedImplementationVersions
-     *            {key->WorkflowType, value->{key->componentName,
-     *            value->maximumAllowedVersion}}
+     *            {key-&gt;WorkflowType, value-&gt;{key-&gt;componentName,
+     *            value-&gt;maximumAllowedVersion}}
      */
     public void setMaximumAllowedComponentImplementationVersions(
             Map<WorkflowType, Map<String, Integer>> maximumAllowedImplementationVersions) {

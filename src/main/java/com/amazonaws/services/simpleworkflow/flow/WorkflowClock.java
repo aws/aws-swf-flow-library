@@ -40,7 +40,7 @@ public interface WorkflowClock {
     /**
      * Create a Value that becomes ready after the specified delay.
      * 
-     * @param delay
+     * @param delaySeconds
      *            time-interval after which the Value becomes ready in seconds.
      * @return Promise that becomes ready after the specified delay.
      */
