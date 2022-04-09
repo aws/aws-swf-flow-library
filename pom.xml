@@ -31,7 +31,7 @@
     <url>https://github.com/aws/aws-swf-flow-library.git</url>
   </scm>
   <properties>
-    <spring.version>5.3.14</spring.version>
+    <spring.version>5.3.18</spring.version>
     <freemarker.version>2.3.9</freemarker.version>
     <aspectj.version>1.8.2</aspectj.version>
     <jre.version>1.8</jre.version>
