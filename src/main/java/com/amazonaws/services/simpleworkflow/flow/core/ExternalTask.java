@@ -16,7 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.core;
 
 /**
  * Used to bridge asynchronous execution to external asynchronous APIs or
- * events. {@link ExternalTask#doExecute(handle)} method is expected to initiate
+ * events. {@link ExternalTask#doExecute(ExternalTaskCompletionHandle)} method is expected to initiate
  * call to an external API and return without blocking. Then completion or
  * failure of the external task is reported through
  * {@link ExternalTaskCompletionHandle}. A cancellation handler returned by the

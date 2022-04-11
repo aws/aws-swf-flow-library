@@ -36,8 +36,7 @@ public abstract class DataConverter {
 
     /**
      * Implements conversion of the single value.
-     * 
-     * @param data
+     * @param content
      *            Simple Workflow Data value to convert to a Java object.
      * @return converted Java object
      * @throws DataConverterException

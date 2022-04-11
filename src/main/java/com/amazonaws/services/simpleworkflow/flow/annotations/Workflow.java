@@ -24,7 +24,7 @@ import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.JsonDataConverter;
 
 /**
- * @Workflow annotation is allowed on interfaces to define a workflow.  This 
+ * {@literal @}Workflow annotation is allowed on interfaces to define a workflow.  This
  * interface forms the contract between the implementation of WorkflowType 
  * and clients interested in starting executions, sending signals, and getting
  * current state of execution.

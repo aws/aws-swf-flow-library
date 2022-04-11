@@ -38,8 +38,8 @@ public class ActivityFailureException extends RuntimeException {
     /**
      * Construct exception with given arguments.
      * 
-     * @param statusCode
-     *            value of status code field
+     * @param reason
+     *            the detail message of the original exception
      * @param details
      *            application specific failure details
      */

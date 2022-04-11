@@ -20,7 +20,8 @@ import com.amazonaws.services.simpleworkflow.flow.DataConverterException;
 /**
  * To be used only by annotations as they do not support <code>null</code> parameters.
  * 
- * @see Activities, Workflow
+ * @see Activities
+ * @see Workflow
  * @author fateev, samar
  */
 public final class NullDataConverter extends DataConverter {

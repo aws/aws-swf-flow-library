@@ -22,15 +22,15 @@ import java.lang.annotation.Target;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 
 /**
- * Used to mark {@link Promise} arguments of &#064;Asynchronous methods that should
+ * Used to mark {@link Promise} arguments of @Asynchronous methods that should
  * not be waited for.
  * <p>
  * Example usage:
  * 
  * <pre>
  * <code>
- * &#064;Asynchronous
- * private void calculate(Promise<Integer> arg1, &#064;NoWait Settable<Integer> result) {
+ * {@literal @}Asynchronous
+ * private void calculate(Promise&lt;Integer&gt; arg1, @NoWait Settable&lt;Integer&gt; result) {
  *    ...
  *    result.set(r);
  * }

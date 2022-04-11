@@ -24,7 +24,7 @@ import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
 
 /**
- * @WorkflowRegistrationOptions is a required annotation, unless 
+ * {@literal @}WorkflowRegistrationOptions is a required annotation, unless
  * {@link SkipTypeRegistration} is provided, on interfaces annotated with 
  * {@link Workflow}.
  * 
