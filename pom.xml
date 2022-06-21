@@ -103,7 +103,7 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.13.1</version>
+      <version>2.13.2.1</version>
     </dependency>
    <!-- JUnit is needed to compile the support classes for the workflow service -->
     <dependency>
