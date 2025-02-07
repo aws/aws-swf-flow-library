@@ -18,8 +18,10 @@ import com.amazonaws.services.simpleworkflow.flow.DecisionContextProvider;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContextProviderImpl;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowClock;
 import com.amazonaws.services.simpleworkflow.flow.annotations.ExponentialRetryWithJitter;
+import com.amazonaws.services.simpleworkflow.flow.core.AndPromise;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.core.Settable;
+import com.amazonaws.services.simpleworkflow.flow.core.Task;
 import com.amazonaws.services.simpleworkflow.flow.interceptors.AsyncExecutor;
 import com.amazonaws.services.simpleworkflow.flow.interceptors.AsyncRetryingExecutor;
 import com.amazonaws.services.simpleworkflow.flow.interceptors.AsyncRunnable;
@@ -30,8 +32,12 @@ import org.aspectj.lang.Signature;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * See {@link com.amazonaws.services.simpleworkflow.flow.aspectj.ExponentialRetryAspect}
@@ -47,21 +53,40 @@ public class ExponentialRetryWithJitterAspect {
 
         private final Settable result;
 
-        public DecoratorInvocationHandler(ProceedingJoinPoint pjp, Settable result) {
+        private AtomicLong firstAttemptTime;
+
+        public DecoratorInvocationHandler(ProceedingJoinPoint pjp, AtomicLong firstAttemptTime, Settable result) {
             this.pjp = pjp;
+            this.firstAttemptTime = firstAttemptTime;
             this.result = result;
         }
 
         @Override
         public void run() throws Throwable {
+            List<Promise> waitFors = new ArrayList<>();
+            if (pjp.getArgs() != null) {
+                for (Object arg : pjp.getArgs()) {
+                    if (arg instanceof Promise) {
+                        waitFors.add((Promise) arg);
+                    }
+                    if (arg instanceof Promise[]) {
+                        waitFors.addAll(Arrays.asList((Promise[]) arg));
+                    }
+                }
+            }
+            AndPromise waitFor = new AndPromise(waitFors);
+            new Task(waitFor) {
+                @Override
+                protected void doExecute() throws Throwable {
+                    firstAttemptTime.compareAndSet(0, decisionContextProviderImpl.getDecisionContext().getWorkflowClock().currentTimeMillis());
+                }
+            };
             if (result != null) {
                 result.unchain();
                 result.chain((Promise) pjp.proceed());
             } else {
                 pjp.proceed();
             }
-
-
         }
     }
 
@@ -72,7 +97,8 @@ public class ExponentialRetryWithJitterAspect {
 
         ExponentialRetryWithJitterPolicy retryPolicy = createExponentialRetryWithJitterPolicy(exponentialRetryWithJitterAnnotation);
         WorkflowClock clock = decisionContextProviderImpl.getDecisionContext().getWorkflowClock();
-        AsyncExecutor executor = new AsyncRetryingExecutor(retryPolicy, clock);
+        AtomicLong firstAttemptTime = new AtomicLong(0);
+        AsyncExecutor executor = new AsyncRetryingExecutor(retryPolicy, clock, firstAttemptTime);
 
         Settable<?> result;
 
@@ -82,7 +108,7 @@ public class ExponentialRetryWithJitterAspect {
             result = new Settable<Object>();
         }
 
-        DecoratorInvocationHandler handler = new DecoratorInvocationHandler(pjp, result);
+        DecoratorInvocationHandler handler = new DecoratorInvocationHandler(pjp, firstAttemptTime, result);
 
         executor.execute(handler);
 
