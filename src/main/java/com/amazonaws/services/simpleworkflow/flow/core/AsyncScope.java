@@ -69,6 +69,7 @@ public abstract class AsyncScope extends AsyncContextAware implements Cancelable
      * 
      * @return true means there are no tasks originated from this scope that are
      *         not done yet.
+     * @throws Throwable - if any error occurs during task execution
      */
     public boolean eventLoop() throws Throwable {
         return context.eventLoop();
