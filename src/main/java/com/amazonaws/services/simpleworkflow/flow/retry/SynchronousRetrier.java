@@ -33,7 +33,7 @@ public class SynchronousRetrier extends Retrier {
         super(retryParameters, logger);
         this.exceptionsToNotRetry = exceptionsToNotRetry;
     }
-
+    
     public Class<?>[] getExceptionsToNotRetry() {
         return exceptionsToNotRetry;
     }
