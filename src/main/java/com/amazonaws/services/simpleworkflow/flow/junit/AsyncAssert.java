@@ -1,14 +1,14 @@
-/**
- * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/*
+ * Copyright 2012 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"). You may not
+ * use this file except in compliance with the License. A copy of the License is
+ * located at
+ * 
+ * http://aws.amazon.com/apache2.0
+ * 
+ * or in the "license" file accompanying this file. This file is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -303,6 +303,8 @@ public class AsyncAssert {
 
     /**
      * Asserts that an object its content isn't null.
+     *
+     * @param object - the Promise object to check for null value
      */
     static public void assertNotNull(final Promise<Object> object) {
         Assert.assertNotNull(object);
@@ -328,6 +330,9 @@ public class AsyncAssert {
     /**
      * Asserts that an object is not <code>null</code> while
      * <code>object.get()</code> is <code>null</code>.
+     *
+     * @param message - the message to display if the assertion fails
+     * @param object - the Promise object to check
      */
     static public void assertNull(final String message, final Promise<Object> object) {
         Assert.assertNotNull(object);
@@ -353,6 +358,8 @@ public class AsyncAssert {
     /**
      * Asserts that an object is not <code>null</code> while
      * <code>object.get()</code> is <code>null</code>.
+     *
+     * @param object - the Promise object to check
      */
     static public void assertNull(final Promise<Object> object) {
         Assert.assertNotNull(object);
@@ -378,6 +385,9 @@ public class AsyncAssert {
     /**
      * Asserts that two Promises content refer to the same object. If they are
      * not, an {@link AssertionError} is thrown with the given message.
+     * @param message - the message to display if the assertion fails
+     * @param expected - the expected object reference
+     * @param actual - the Promise containing the actual object to compare
      */
     static public void assertSame(final String message, final Object expected, final Promise<Object> actual) {
         new Task(actual) {
@@ -402,6 +412,9 @@ public class AsyncAssert {
     /**
      * Asserts that two Promises content refer to the same object. If they are
      * not, an {@link AssertionError} is thrown with the given message.
+     *
+     * @param expected - the expected object reference
+     * @param actual - the Promise containing the actual object to compare
      */
     static public void assertSame(final Object expected, final Promise<Object> actual) {
         new Task(actual) {
@@ -427,6 +440,10 @@ public class AsyncAssert {
     /**
      * Asserts that two Promises content do not refer to the same object. If
      * they are an {@link AssertionError} is thrown with the given message.
+     *
+     * @param message - the message to display if the assertion fails
+     * @param expected - the expected object reference
+     * @param actual - the Promise containing the actual object to compare
      */
     static public void assertNotSame(final String message, final Object expected, final Promise<Object> actual) {
         new Task(actual) {
@@ -451,6 +468,9 @@ public class AsyncAssert {
     /**
      * Asserts that two Promises content do not refer to the same object. If
      * they are an {@link AssertionError} is thrown with the given message.
+     *
+     * @param expected - the expected object reference
+     * @param actual - the Promise containing the actual object to compare
      */
     static public void assertNotSame(final Object expected, final Promise<Object> actual) {
         new Task(actual) {

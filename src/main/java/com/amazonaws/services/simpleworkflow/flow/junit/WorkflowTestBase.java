@@ -1,14 +1,14 @@
-/**
- * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/*
+ * Copyright 2012 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"). You may not
+ * use this file except in compliance with the License. A copy of the License is
+ * located at
+ * 
+ * http://aws.amazon.com/apache2.0
+ * 
+ * or in the "license" file accompanying this file. This file is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -29,11 +29,11 @@ import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.core.Settable;
 import com.amazonaws.services.simpleworkflow.flow.core.Task;
 import com.amazonaws.services.simpleworkflow.flow.junit.spring.FlowSpringJUnit4ClassRunner;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 import com.amazonaws.services.simpleworkflow.flow.test.TestWorkflowClock;
 import com.amazonaws.services.simpleworkflow.flow.test.TestWorkflowContext;
 import com.amazonaws.services.simpleworkflow.flow.worker.CurrentDecisionContext;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
 
 public abstract class WorkflowTestBase implements MethodRule {
 
@@ -65,13 +65,10 @@ public abstract class WorkflowTestBase implements MethodRule {
         this.decisionContext = decisionContext;
         workflowContext = (TestWorkflowContext) decisionContext.getWorkflowContext();
         workflowClock = (TestWorkflowClock) decisionContext.getWorkflowClock();
-        WorkflowExecution we = new WorkflowExecution();
-        we.setWorkflowId("testWorkflowId");
-        we.setRunId("testRunId");
+        WorkflowExecution we =
+            WorkflowExecution.builder().workflowId("testWorkflowId").runId("testRunId").build();
         workflowContext.setWorkflowExecution(we);
-        WorkflowType wt = new WorkflowType();
-        wt.setName("testWorkflow");
-        wt.setVersion("0.0");
+        WorkflowType wt = WorkflowType.builder().name("testWorkflow").version("0.0").build();
         workflowContext.setWorkflowType(wt);
     }
 
@@ -84,6 +81,8 @@ public abstract class WorkflowTestBase implements MethodRule {
      * outstanding tasks that are blocked on non external events or timers. Such
      * blockage is usually indicates a bug that can lead to a workflow
      * "getting stuck". Default is <code>true</code>.
+     *
+     * @param disableOutstandingTasksCheck - true to disable task blocking checks
      */
     public void setDisableOutstandingTasksCheck(boolean disableOutstandingTasksCheck) {
         this.disableOutstandingTasksCheck = disableOutstandingTasksCheck;
@@ -154,7 +153,8 @@ public abstract class WorkflowTestBase implements MethodRule {
      * Here blocked means that there are no any tasks that are ready to be
      * executed. Usually these tasks wait for timers or some other external
      * events.
-     * 
+     *
+     * @param waitFor - promises to wait for before checking blocked state
      * @return Promise that becomes ready when there are not tasks to execute
      */
     public Promise<Void> waitBlocked(Promise<?>... waitFor) {
@@ -203,7 +203,7 @@ public abstract class WorkflowTestBase implements MethodRule {
      * Test timeout time. Uses real clock that ignores acceleration (see
      * {@link #setClockAccelerationCoefficient(double)}). Instead of calling
      * this method consider using {@link FlowBlockJUnit4ClassRunner} or
-     * {@link FlowSpringJUnit4ClassRunner} and timeout parameter of @Test
+     * {@link FlowSpringJUnit4ClassRunner} and timeout parameter of {@code @Test}
      * annotation.
      * 
      * @param timeout
