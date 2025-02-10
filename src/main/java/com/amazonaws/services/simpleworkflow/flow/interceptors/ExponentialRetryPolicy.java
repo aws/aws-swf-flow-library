@@ -46,6 +46,7 @@ public class ExponentialRetryPolicy extends RetryPolicyBase {
 
     /**
      * Set the upper limit of retry interval. No limit by default.
+     * @param maximumRetryIntervalSeconds max retry interval seconds
      */
     public void setMaximumRetryIntervalSeconds(long maximumRetryIntervalSeconds) {
         this.maximumRetryIntervalSeconds = maximumRetryIntervalSeconds;
@@ -62,6 +63,7 @@ public class ExponentialRetryPolicy extends RetryPolicyBase {
 
     /**
      * Stop retrying after the specified interval.
+     * @param retryExpirationIntervalSeconds retry expiration interval seconds
      */
     public void setRetryExpirationIntervalSeconds(long retryExpirationIntervalSeconds) {
         this.retryExpirationIntervalSeconds = retryExpirationIntervalSeconds;
@@ -80,6 +82,7 @@ public class ExponentialRetryPolicy extends RetryPolicyBase {
      * Coefficient used to calculate the next retry interval. The following
      * formula is used:
      * <code>initialRetryIntervalSeconds * Math.pow(backoffCoefficient, numberOfTries - 2)</code>
+     * @param backoffCoefficient Multiplier for retry delay
      */
     public void setBackoffCoefficient(double backoffCoefficient) {
         this.backoffCoefficient = backoffCoefficient;
@@ -96,6 +99,7 @@ public class ExponentialRetryPolicy extends RetryPolicyBase {
 
     /**
      * Maximum number of attempts. The first retry is second attempt.
+     * @param maximumAttempts Total allowed retry attempts
      */
     public void setMaximumAttempts(int maximumAttempts) {
         this.maximumAttempts = maximumAttempts;
