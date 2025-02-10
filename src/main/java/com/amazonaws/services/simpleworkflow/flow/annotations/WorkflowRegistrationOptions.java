@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
 
 import com.amazonaws.services.simpleworkflow.flow.WorkflowWorker;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 /**
  * {@literal @}WorkflowRegistrationOptions is a required annotation, unless
@@ -43,12 +43,16 @@ public @interface WorkflowRegistrationOptions {
     /**
      * Optional textual description of the workflow type. Maximum length is 1024
      * characters.
+     *
+     * @return workflow description
      */
     String description() default "";
 
     /**
      * Maximum time that workflow run is allowed to execute. Workflow is
      * forcefully closed by the SWF service if this timeout is exceeded.
+     *
+     * @return maximum execution timeout in seconds
      */
     long defaultExecutionStartToCloseTimeoutSeconds();
 
@@ -58,6 +62,8 @@ public @interface WorkflowRegistrationOptions {
      * the middle of one. Do not confuse with the whole worklfow timeout (
      * {@link #defaultExecutionStartToCloseTimeoutSeconds()} which can be really
      * big. Default is 30 seconds.
+     *
+     * @return decision task timeout in seconds
      */
     long defaultTaskStartToCloseTimeoutSeconds() default 30;
 
@@ -69,6 +75,8 @@ public @interface WorkflowRegistrationOptions {
      * Default is {@link FlowConstants#USE_WORKER_TASK_LIST}, which means to use task
      * list from the {@link WorkflowWorker} that the workflow implementation is
      * registered with.
+     *
+     * @return task list name
      */
     String defaultTaskList() default FlowConstants.USE_WORKER_TASK_LIST;
 
@@ -77,6 +85,8 @@ public @interface WorkflowRegistrationOptions {
     /**
      * Default is {@link FlowConstants#DEFAULT_TASK_PRIORITY} if it
      * is not specified on activity invocation
+     *
+     * @return default task priority
      */
     int defaultTaskPriority() default FlowConstants.DEFAULT_TASK_PRIORITY;
 

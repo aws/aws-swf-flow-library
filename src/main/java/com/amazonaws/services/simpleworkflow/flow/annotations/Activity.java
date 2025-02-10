@@ -34,6 +34,8 @@ public @interface Activity {
     /**
      * This is used to override the name of ActivityType.
      * Default is empty string which means to use the method name.
+     *
+     * @return activity name, defaults to method name if empty
      */
     String name() default "";
 
@@ -43,6 +45,7 @@ public @interface Activity {
      * {@link Activities} annotation for the interface.  If 
      * {@link Activities#version()} is also empty string then AWS Flow Framework
      * annotation processor reports an error.
+     * @return activity version, defaults to Activities annotation version if empty.
      */
     String version() default "";
 
