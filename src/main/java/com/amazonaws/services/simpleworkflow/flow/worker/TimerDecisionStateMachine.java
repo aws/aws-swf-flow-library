@@ -14,23 +14,23 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.model.CancelTimerDecisionAttributes;
-import com.amazonaws.services.simpleworkflow.model.Decision;
-import com.amazonaws.services.simpleworkflow.model.DecisionType;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.StartTimerDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.CancelTimerDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.Decision;
+import software.amazon.awssdk.services.swf.model.DecisionType;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.StartTimerDecisionAttributes;
 
 /**
  * Timer doesn't have separate initiation decision as it is started immediately.
  * But from the state machine point of view it is modeled the same as activity
  * with no TimerStarted event used as initiation event.
- * 
+ *
  * @author fateev
  */
 class TimerDecisionStateMachine extends DecisionStateMachineBase {
 
     private StartTimerDecisionAttributes attributes;
-    
+
     private boolean canceled;
 
     public TimerDecisionStateMachine(DecisionId id, StartTimerDecisionAttributes attributes) {
@@ -45,7 +45,7 @@ class TimerDecisionStateMachine extends DecisionStateMachineBase {
         super(id, state);
         this.attributes = attributes;
     }
-    
+
     @Override
     public Decision getDecision() {
         switch (state) {
@@ -83,7 +83,7 @@ class TimerDecisionStateMachine extends DecisionStateMachineBase {
             super.handleCancellationFailureEvent(event);
         }
     }
-    
+
     @Override
     public void cancel(Runnable immediateCancellationCallback) {
         canceled = true;
@@ -101,19 +101,12 @@ class TimerDecisionStateMachine extends DecisionStateMachineBase {
     }
 
     private Decision createCancelTimerDecision() {
-        CancelTimerDecisionAttributes tryCancel = new CancelTimerDecisionAttributes();
-        tryCancel.setTimerId(attributes.getTimerId());
-        Decision decision = new Decision();
-        decision.setCancelTimerDecisionAttributes(tryCancel);
-        decision.setDecisionType(DecisionType.CancelTimer.toString());
-        return decision;
+        CancelTimerDecisionAttributes tryCancel = CancelTimerDecisionAttributes.builder().timerId(attributes.timerId()).build();
+        return Decision.builder().cancelTimerDecisionAttributes(tryCancel).decisionType(DecisionType.CANCEL_TIMER).build();
     }
 
     private Decision createStartTimerDecision() {
-        Decision decision = new Decision();
-        decision.setStartTimerDecisionAttributes(attributes);
-        decision.setDecisionType(DecisionType.StartTimer.toString());
-        return decision;
+        return Decision.builder().startTimerDecisionAttributes(attributes).decisionType(DecisionType.START_TIMER).build();
     }
 
 }

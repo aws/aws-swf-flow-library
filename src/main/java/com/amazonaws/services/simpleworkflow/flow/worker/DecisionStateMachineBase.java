@@ -16,8 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.worker;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
 
 abstract class DecisionStateMachineBase implements DecisionStateMachine {
 
@@ -40,7 +39,7 @@ abstract class DecisionStateMachineBase implements DecisionStateMachine {
         this.state = state;
         stateHistory.add(state.toString());
     }
-    
+
     public DecisionState getState() {
         return state;
     }
@@ -48,6 +47,9 @@ abstract class DecisionStateMachineBase implements DecisionStateMachine {
     public DecisionId getId() {
         return id;
     }
+
+    @Override
+    public void throttleDecision() { }
 
     @Override
     public boolean isDone() {

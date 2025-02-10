@@ -28,11 +28,11 @@ import com.amazonaws.services.simpleworkflow.flow.core.ExternalTask;
 import com.amazonaws.services.simpleworkflow.flow.core.ExternalTaskCancellationHandler;
 import com.amazonaws.services.simpleworkflow.flow.core.ExternalTaskCompletionHandle;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.StartTimerDecisionAttributes;
-import com.amazonaws.services.simpleworkflow.model.StartTimerFailedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.TimerCanceledEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.TimerFiredEventAttributes;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.StartTimerDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.StartTimerFailedEventAttributes;
+import software.amazon.awssdk.services.swf.model.TimerCanceledEventAttributes;
+import software.amazon.awssdk.services.swf.model.TimerFiredEventAttributes;
 
 class WorkflowClockImpl implements WorkflowClock {
 
@@ -110,10 +110,9 @@ class WorkflowClockImpl implements WorkflowClock {
             return Promise.asPromise(userContext);
         }
         final OpenRequestInfo<T, Object> context = new OpenRequestInfo<T, Object>(userContext);
-        final StartTimerDecisionAttributes timer = new StartTimerDecisionAttributes();
-        timer.setStartToFireTimeout(FlowHelpers.secondsToDuration(delaySeconds));
-        timer.setTimerId(timerId);
-        String taskName = "timerId=" + timer.getTimerId() + ", delaySeconds=" + timer.getStartToFireTimeout();
+        final StartTimerDecisionAttributes timer = StartTimerDecisionAttributes.builder()
+            .startToFireTimeout(FlowHelpers.secondsToDuration(delaySeconds)).timerId(timerId).build();
+        String taskName = "timerId=" + timer.timerId() + ", delaySeconds=" + timer.startToFireTimeout();
         new ExternalTask() {
 
             @Override
@@ -131,7 +130,7 @@ class WorkflowClockImpl implements WorkflowClock {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     void handleTimerFired(Long eventId, TimerFiredEventAttributes attributes) {
-        String timerId = attributes.getTimerId();
+        String timerId = attributes.timerId();
         if (decisions.handleTimerClosed(timerId)) {
             OpenRequestInfo scheduled = scheduledTimers.remove(timerId);
             if (scheduled != null) {
@@ -147,15 +146,15 @@ class WorkflowClockImpl implements WorkflowClock {
 
     @SuppressWarnings({ "rawtypes" })
     void handleStartTimerFailed(HistoryEvent event) {
-        StartTimerFailedEventAttributes attributes = event.getStartTimerFailedEventAttributes();
-        String timerId = attributes.getTimerId();
+        StartTimerFailedEventAttributes attributes = event.startTimerFailedEventAttributes();
+        String timerId = attributes.timerId();
         if (decisions.handleStartTimerFailed(event)) {
             OpenRequestInfo scheduled = scheduledTimers.remove(timerId);
             if (scheduled != null) {
                 ExternalTaskCompletionHandle completionHandle = scheduled.getCompletionHandle();
                 Object createTimerUserContext = scheduled.getUserContext();
-                String cause = attributes.getCause();
-                Throwable failure = new StartTimerFailedException(event.getEventId(), timerId, createTimerUserContext, cause);
+                String cause = attributes.causeAsString();
+                Throwable failure = new StartTimerFailedException(event.eventId(), timerId, createTimerUserContext, cause);
                 completionHandle.fail(failure);
             }
         }
@@ -165,8 +164,8 @@ class WorkflowClockImpl implements WorkflowClock {
     }
 
     void handleTimerCanceled(HistoryEvent event) {
-        TimerCanceledEventAttributes attributes = event.getTimerCanceledEventAttributes();
-        String timerId = attributes.getTimerId();
+        TimerCanceledEventAttributes attributes = event.timerCanceledEventAttributes();
+        String timerId = attributes.timerId();
         if (decisions.handleTimerCanceled(event)) {
             OpenRequestInfo<?, ?> scheduled = scheduledTimers.remove(timerId);
             if (scheduled != null) {

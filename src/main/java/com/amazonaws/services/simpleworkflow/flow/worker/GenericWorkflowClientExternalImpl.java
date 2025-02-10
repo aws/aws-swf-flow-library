@@ -14,12 +14,13 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
+import static com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers.secondsToDuration;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.UUID;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
 import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
@@ -27,29 +28,30 @@ import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClientE
 import com.amazonaws.services.simpleworkflow.flow.generic.SignalExternalWorkflowParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.StartWorkflowExecutionParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.TerminateWorkflowExecutionParameters;
-import com.amazonaws.services.simpleworkflow.model.DescribeWorkflowExecutionRequest;
-import com.amazonaws.services.simpleworkflow.model.RequestCancelWorkflowExecutionRequest;
-import com.amazonaws.services.simpleworkflow.model.Run;
-import com.amazonaws.services.simpleworkflow.model.SignalWorkflowExecutionRequest;
-import com.amazonaws.services.simpleworkflow.model.StartWorkflowExecutionRequest;
-import com.amazonaws.services.simpleworkflow.model.TaskList;
-import com.amazonaws.services.simpleworkflow.model.TerminateWorkflowExecutionRequest;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionDetail;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.DescribeWorkflowExecutionRequest;
+import software.amazon.awssdk.services.swf.model.DescribeWorkflowExecutionResponse;
+import software.amazon.awssdk.services.swf.model.RequestCancelWorkflowExecutionRequest;
+import software.amazon.awssdk.services.swf.model.SignalWorkflowExecutionRequest;
+import software.amazon.awssdk.services.swf.model.StartWorkflowExecutionRequest;
+import software.amazon.awssdk.services.swf.model.StartWorkflowExecutionResponse;
+import software.amazon.awssdk.services.swf.model.TaskList;
+import software.amazon.awssdk.services.swf.model.TerminateWorkflowExecutionRequest;
 
 public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientExternal {
 
     private final String domain;
 
-    private final AmazonSimpleWorkflow service;
+    private final SwfClient service;
 
     private SimpleWorkflowClientConfig config;
 
-    public GenericWorkflowClientExternalImpl(AmazonSimpleWorkflow service, String domain) {
+    public GenericWorkflowClientExternalImpl(SwfClient service, String domain) {
         this(service, domain, null);
     }
 
-    public GenericWorkflowClientExternalImpl(AmazonSimpleWorkflow service, String domain, SimpleWorkflowClientConfig config) {
+    public GenericWorkflowClientExternalImpl(SwfClient service, String domain, SimpleWorkflowClientConfig config) {
         this.service = service;
         this.domain = domain;
         this.config = config;
@@ -57,63 +59,58 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
 
     @Override
     public WorkflowExecution startWorkflow(StartWorkflowExecutionParameters startParameters) {
-        StartWorkflowExecutionRequest request = new StartWorkflowExecutionRequest();
-        request.setDomain(domain);
+        StartWorkflowExecutionRequest.Builder builderRequest = StartWorkflowExecutionRequest.builder()
+            .domain(domain)
+            .input(startParameters.getInput())
+            .executionStartToCloseTimeout(secondsToDuration(startParameters.getExecutionStartToCloseTimeout()))
+            .taskStartToCloseTimeout(secondsToDuration(startParameters.getTaskStartToCloseTimeoutSeconds()))
+            .tagList(startParameters.getTagList()).workflowId(startParameters.getWorkflowId())
+            .workflowType(startParameters.getWorkflowType().toSdkType())
+            .taskPriority(FlowHelpers.taskPriorityToString(startParameters.getTaskPriority()))
+            .lambdaRole(startParameters.getLambdaRole());
 
-        request.setInput(startParameters.getInput());
-        request.setExecutionStartToCloseTimeout(FlowHelpers.secondsToDuration(startParameters.getExecutionStartToCloseTimeout()));
-        request.setTaskStartToCloseTimeout(FlowHelpers.secondsToDuration(startParameters.getTaskStartToCloseTimeoutSeconds()));
-        request.setTagList(startParameters.getTagList());
         String taskList = startParameters.getTaskList();
         if (taskList != null && !taskList.isEmpty()) {
-            request.setTaskList(new TaskList().withName(taskList));
+            builderRequest.taskList(TaskList.builder().name(taskList).build());
         }
-        request.setWorkflowId(startParameters.getWorkflowId());
-        request.setWorkflowType(startParameters.getWorkflowType());
-        request.setTaskPriority(FlowHelpers.taskPriorityToString(startParameters.getTaskPriority()));
 
-        if(startParameters.getChildPolicy() != null) {
-            request.setChildPolicy(startParameters.getChildPolicy());
+        if (startParameters.getChildPolicy() != null) {
+            builderRequest.childPolicy(startParameters.getChildPolicy());
         }
-        request.setLambdaRole(startParameters.getLambdaRole());
 
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
-        Run result = service.startWorkflowExecution(request);
-        WorkflowExecution execution = new WorkflowExecution().withRunId(result.getRunId()).withWorkflowId(request.getWorkflowId());
+        StartWorkflowExecutionRequest request = builderRequest.build();
 
-        return execution;
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        StartWorkflowExecutionResponse result = service.startWorkflowExecution(request);
+        return WorkflowExecution.builder().workflowId(request.workflowId()).runId(result.runId()).build();
     }
 
     @Override
     public void signalWorkflowExecution(SignalExternalWorkflowParameters signalParameters) {
-        SignalWorkflowExecutionRequest request = new SignalWorkflowExecutionRequest();
-        request.setDomain(domain);
+        SignalWorkflowExecutionRequest request = SignalWorkflowExecutionRequest.builder()
+            .domain(domain)
+            .input(signalParameters.getInput())
+            .signalName(signalParameters.getSignalName())
+            .runId(signalParameters.getRunId())
+            .workflowId(signalParameters.getWorkflowId())
+            .build();
 
-        request.setInput(signalParameters.getInput());
-        request.setSignalName(signalParameters.getSignalName());
-        request.setRunId(signalParameters.getRunId());
-        request.setWorkflowId(signalParameters.getWorkflowId());
-
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.signalWorkflowExecution(request);
     }
 
     @Override
     public void requestCancelWorkflowExecution(WorkflowExecution execution) {
-        RequestCancelWorkflowExecutionRequest request = new RequestCancelWorkflowExecutionRequest();
-        request.setDomain(domain);
+        RequestCancelWorkflowExecutionRequest request = RequestCancelWorkflowExecutionRequest.builder().domain(domain)
+            .runId(execution.getRunId()).workflowId(execution.getWorkflowId()).build();
 
-        request.setRunId(execution.getRunId());
-        request.setWorkflowId(execution.getWorkflowId());
-
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.requestCancelWorkflowExecution(request);
     }
 
     @Override
     public String generateUniqueId() {
-        String workflowId = UUID.randomUUID().toString();
-        return workflowId;
+        return UUID.randomUUID().toString();
     }
 
     @Override
@@ -158,30 +155,27 @@ public class GenericWorkflowClientExternalImpl implements GenericWorkflowClientE
         }
         return result;
     }
-    
-    private String getLatestWorkflowExecutionContext(WorkflowExecution execution) {
-        DescribeWorkflowExecutionRequest request = new DescribeWorkflowExecutionRequest();
-        request.setDomain(domain);
-        request.setExecution(execution);
 
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
-        WorkflowExecutionDetail details = service.describeWorkflowExecution(request);
-        String executionContext = details.getLatestExecutionContext();
-        return executionContext;
+    private String getLatestWorkflowExecutionContext(WorkflowExecution execution) {
+        DescribeWorkflowExecutionRequest request = DescribeWorkflowExecutionRequest.builder().domain(domain).execution(execution.toSdkType()).build();
+
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        DescribeWorkflowExecutionResponse details = service.describeWorkflowExecution(request);
+        return details.latestExecutionContext();
     }
 
     @Override
     public void terminateWorkflowExecution(TerminateWorkflowExecutionParameters terminateParameters) {
-        TerminateWorkflowExecutionRequest request = new TerminateWorkflowExecutionRequest();
         WorkflowExecution workflowExecution = terminateParameters.getWorkflowExecution();
-        request.setWorkflowId(workflowExecution.getWorkflowId());
-        request.setRunId(workflowExecution.getRunId());
-        request.setDomain(domain);
-        request.setDetails(terminateParameters.getDetails());
-        request.setReason(terminateParameters.getReason());
-        request.setChildPolicy(terminateParameters.getChildPolicy());
+        TerminateWorkflowExecutionRequest request = TerminateWorkflowExecutionRequest.builder()
+            .workflowId(workflowExecution.getWorkflowId())
+            .runId(workflowExecution.getRunId())
+            .domain(domain)
+            .details(terminateParameters.getDetails())
+            .reason(terminateParameters.getReason())
+            .childPolicy(terminateParameters.getChildPolicy()).build();
 
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.terminateWorkflowExecution(request);
     }
 }

@@ -12,24 +12,17 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
+
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-/**
- * This interface is for internal use only and may be changed or removed without prior notice.
- */
-public interface TaskPoller<T>  {
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import software.amazon.awssdk.services.swf.model.RespondDecisionTaskCompletedRequest;
 
-    T poll() throws InterruptedException;
-
-    void execute(T task) throws Exception;
-    
-    void suspend();
-
-    void resume();
-
-    boolean isSuspended();
-
-    void shutdown();
-
-    SuspendableSemaphore getPollingSemaphore();
+@RequiredArgsConstructor
+public class HandleDecisionTaskResults {
+    @Getter
+    private final RespondDecisionTaskCompletedRequest respondDecisionTaskCompletedRequest;
+    @Getter
+    private final AsyncDecider asyncDecider;
 }
