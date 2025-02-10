@@ -14,15 +14,14 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import java.util.concurrent.CancellationException;
-
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
 import com.amazonaws.services.simpleworkflow.flow.ActivityWorker;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeExecutionOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeRegistrationOptions;
-import com.amazonaws.services.simpleworkflow.model.ActivityTask;
+import java.util.concurrent.CancellationException;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.RegisterActivityTypeRequest;
 
 /**
  * Base class for activity implementation. Extending
@@ -38,7 +37,7 @@ public abstract class ActivityImplementation {
 
     /**
      * Options passed to the
-     * {@link AmazonSimpleWorkflow#registerActivityType(com.amazonaws.services.simpleworkflow.model.RegisterActivityTypeRequest)}
+     * {@link SwfClient#registerActivityType(RegisterActivityTypeRequest)}
      * call.
      * 
      * @return null if activity registration is not required on the worker
@@ -49,11 +48,11 @@ public abstract class ActivityImplementation {
     public abstract ActivityTypeExecutionOptions getExecutionOptions();
 
     /**
-     * Execute external activity or initiate its execution .
+     * Execute external activity or initiate its execution.
      * 
      * @param context
      *            information about activity to be executed. Use
-     *            {@link ActivityTask#getInput()} to get activity input
+     *            {@link ActivityExecutionContext#getTask()}{@code #input()} to get activity input
      *            arguments.
      * @return result of activity execution.
      */

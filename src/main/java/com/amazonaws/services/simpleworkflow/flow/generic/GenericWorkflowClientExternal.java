@@ -14,10 +14,9 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import java.util.Map;
-
 import com.amazonaws.services.simpleworkflow.flow.WorkflowContext;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import java.util.Map;
 
 
 public interface GenericWorkflowClientExternal {

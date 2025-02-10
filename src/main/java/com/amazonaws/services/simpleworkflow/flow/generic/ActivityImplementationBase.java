@@ -14,14 +14,12 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import java.util.concurrent.CancellationException;
-
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
 import com.amazonaws.services.simpleworkflow.flow.ActivityWorker;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeExecutionOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeRegistrationOptions;
-import com.amazonaws.services.simpleworkflow.model.ActivityTask;
+import java.util.concurrent.CancellationException;
 
 /**
  * Extend this class to implement an activity. There are two types of activity
@@ -40,8 +38,7 @@ public abstract class ActivityImplementationBase extends ActivityImplementation 
     @Override
     public String execute(ActivityExecutionContext context) 
             throws ActivityFailureException, CancellationException {
-        ActivityTask task = context.getTask();
-        return execute(task.getInput(), context);
+        return execute(context.getTask().getInput(), context);
     }
 
     @Override

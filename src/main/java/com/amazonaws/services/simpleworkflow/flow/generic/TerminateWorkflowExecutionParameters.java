@@ -14,8 +14,8 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 public class TerminateWorkflowExecutionParameters {
 
