@@ -14,17 +14,6 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.pojo;
 
-import java.beans.Expression;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.JsonDataConverter;
@@ -44,7 +33,17 @@ import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFact
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactoryFactory;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeComponentImplementationVersion;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeImplementationOptions;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import java.beans.Expression;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFactoryFactory {
 
@@ -198,15 +197,21 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
                                     + getMethodFullName(method));
                 }
                 if (!method.getDeclaringClass().equals(interfaze)) {
-                    throw new IllegalArgumentException("Interface " + interfaze.getName()
-                            + " cannot inherit workflow implementation method annotated with @Execute: "
-                            + getMethodFullName(method));
-
+                    // If the name field of @Execute method is set, Flow will use its value as the workflow type name.
+                    // Any interfaces that inherit this @Execute method will have the same workflow type name, which should not
+                    // be allowed as Flow need 1:1 mapping between workflow type and workflow implementation.
+                    if (executeAnnotation.name() != null && !executeAnnotation.name().isEmpty()) {
+                        throw new IllegalArgumentException("Interface " + interfaze.getName()
+                                + " cannot inherit workflow implementation method annotated with @Execute: "
+                                + getMethodFullName(method)
+                                + " which has a non-empty name: "
+                                + executeAnnotation.name());
+                    }
                 }
                 DataConverter converter = createConverter(workflowAnnotation.dataConverter(), converterOverride);
                 workflowImplementationMethod = new MethodConverterPair(method, converter);
                 workflowType = getWorkflowType(interfaceName, method, executeAnnotation);
-                
+
                 WorkflowRegistrationOptions registrationOptionsAnnotation = interfaze.getAnnotation(WorkflowRegistrationOptions.class);
                 SkipTypeRegistration skipRegistrationAnnotation = interfaze.getAnnotation(SkipTypeRegistration.class);
                 if (skipRegistrationAnnotation == null) {
@@ -395,8 +400,6 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
         assert (method != null);
         assert (executeAnnotation != null);
 
-        WorkflowType workflowType = new WorkflowType();
-
         String workflowName = null;
         if (executeAnnotation.name() != null && !executeAnnotation.name().isEmpty()) {
             workflowName = executeAnnotation.name();
@@ -410,9 +413,8 @@ public class POJOWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFact
                     "Empty value of the required \"version\" parameter of the @Execute annotation found on "
                             + getMethodFullName(method));
         }
-        workflowType.setName(workflowName);
-        workflowType.setVersion(executeAnnotation.version());
-        return workflowType;
+
+        return WorkflowType.builder().name(workflowName).version(executeAnnotation.version()).build();
     }
 
     protected WorkflowTypeRegistrationOptions createRegistrationOptions(WorkflowRegistrationOptions registrationOptionsAnnotation) {

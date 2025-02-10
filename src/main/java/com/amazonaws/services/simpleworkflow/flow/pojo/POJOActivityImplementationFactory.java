@@ -14,14 +14,6 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.pojo;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.JsonDataConverter;
 import com.amazonaws.services.simpleworkflow.flow.annotations.Activities;
@@ -35,10 +27,17 @@ import com.amazonaws.services.simpleworkflow.flow.annotations.SkipTypeRegistrati
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationFactory;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeCompletionRetryOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeExecutionOptions;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeRegistrationOptions;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class POJOActivityImplementationFactory extends ActivityImplementationFactory {
 
@@ -321,7 +320,6 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
 
     private static ActivityType getActivityType(String interfaceName, Method activity, Activity activityAnnotation,
             ParentInterfaceOptions parentOptions) {
-        ActivityType activityType = new ActivityType();
 
         String activityName = null;
         String activityVersion = null;
@@ -350,10 +348,7 @@ public class POJOActivityImplementationFactory extends ActivityImplementationFac
                 throw new IllegalArgumentException("No version found for activity defined by " + activity);
             }
         }
-
-        activityType.setName(activityName);
-        activityType.setVersion(activityVersion);
-        return activityType;
+        return ActivityType.builder().name(activityName).version(activityVersion).build();
     }
 
     private static boolean nullOrEmpty(String nameFromAnnotation) {
