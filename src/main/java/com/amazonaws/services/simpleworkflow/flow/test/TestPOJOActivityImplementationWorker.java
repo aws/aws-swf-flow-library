@@ -14,12 +14,11 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.test;
 
-import java.util.List;
-
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOActivityImplementationFactory;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import java.util.List;
 
 
 public class TestPOJOActivityImplementationWorker {
