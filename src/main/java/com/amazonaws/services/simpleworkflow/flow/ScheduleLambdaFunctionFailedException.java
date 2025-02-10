@@ -14,7 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.ScheduleLambdaFunctionFailedCause;
+import software.amazon.awssdk.services.swf.model.ScheduleLambdaFunctionFailedCause;
 
 /**
  * Exception used to communicate that lambda function wasn't scheduled due to some

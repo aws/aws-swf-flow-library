@@ -14,18 +14,25 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
-import java.util.function.Supplier;
+import lombok.RequiredArgsConstructor;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
-public class DefaultChildWorkflowIdHandler implements ChildWorkflowIdHandler {
+import java.util.function.BiConsumer;
+
+@RequiredArgsConstructor
+public class BiConsumerNoException<T, U> implements BiConsumer<T, U> {
+
+    private static final Log log = LogFactory.getLog(BiConsumerNoException.class);
+
+    private final BiConsumer<T, U> delegateBiConsumer;
 
     @Override
-    public String generateWorkflowId(WorkflowExecution currentWorkflow, Supplier<String> nextId) {
-        return String.format("%s:%s", currentWorkflow.getRunId(), nextId.get());
-    }
-
-    @Override
-    public String extractRequestedWorkflowId(String childWorkflowId) {
-        return childWorkflowId;
+    public void accept(final T t, final U u) {
+        try {
+            delegateBiConsumer.accept(t, u);
+        } catch (final RuntimeException e) {
+            log.warn("Delegate BiConsumer failed: ", e);
+        }
     }
 }

@@ -18,23 +18,23 @@ import java.util.List;
 
 import com.amazonaws.services.simpleworkflow.flow.annotations.WorkflowComponentImplementationVersions;
 import com.amazonaws.services.simpleworkflow.flow.generic.ContinueAsNewWorkflowExecutionParameters;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 
 public interface WorkflowContext {
 
     WorkflowExecution getWorkflowExecution();
-
+    
     WorkflowExecution getParentWorkflowExecution();
-
+    
     WorkflowType getWorkflowType();
-
+    
     boolean isCancelRequested();
-
+    
     ContinueAsNewWorkflowExecutionParameters getContinueAsNewOnCompletion();
-
+    
     void setContinueAsNewOnCompletion(ContinueAsNewWorkflowExecutionParameters continueParameters);
 
     List<String> getTagList();
@@ -46,11 +46,11 @@ public interface WorkflowContext {
     long getExecutionStartToCloseTimeout();
 
     String getTaskList();
-
+    
     int getTaskPriority();
 
     String getLambdaRole();
-
+    
     /**
      * Is the component current version greater or equal to the passed
      * parameter? Increases the current version if it is newly executed workflow
@@ -99,9 +99,9 @@ public interface WorkflowContext {
      * else {
      *     // Old code path 1
      * }
-     *
+     * 
      * // Location of the workflow execution when upgrade was deployed.
-     *
+     * 
      * if (workflowContext.isImplementationVersion(&quot;comp1&quot;, 1)) {
      *     // New code path 2
      * }
@@ -150,8 +150,8 @@ public interface WorkflowContext {
      * {@link WorkflowWorker#setMaximumAllowedComponentImplementationVersions(java.util.Map)}
      * to specify the maximum allowed version.</li>
      * </ol>
-     *
-     *
+     * 
+     * 
      * @param componentName
      *            name of the versioned component
      * @param internalVersion
@@ -159,10 +159,10 @@ public interface WorkflowContext {
      * @return if the code path of the specified version should be taken.
      */
     boolean isImplementationVersion(String componentName, int internalVersion);
-
+ 
     /**
      * The current version of the component.
-     *
+     * 
      * @param component
      *            name of the component to version
      * @return <code>null</code> if no version found for the component.

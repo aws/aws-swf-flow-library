@@ -27,13 +27,17 @@ public interface Suspendable {
     void resumePolling();
     
     /**
-     * Check suspention status
+     * Check suspension status
+     *
+     * @return true if polling is suspended
      */
     boolean isPollingSuspended();
     
     /**
      * If set to <code>true</code> stop making any poll requests. Outstanding long polls still can return
      * tasks after this method was called. Setting to <code>false</code> enables polling.
+     *
+     * @param flag - boolean to control polling state
      */
     void setPollingSuspended(boolean flag);
 

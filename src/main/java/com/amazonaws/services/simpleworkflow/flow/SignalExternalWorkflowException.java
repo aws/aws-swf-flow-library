@@ -14,8 +14,8 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.SignalExternalWorkflowExecutionFailedCause;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import software.amazon.awssdk.services.swf.model.SignalExternalWorkflowExecutionFailedCause;
 
 /**
  * Exception used to communicate failure of a signal.

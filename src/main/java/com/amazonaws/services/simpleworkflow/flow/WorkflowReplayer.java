@@ -14,35 +14,35 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.core.AsyncTaskInfo;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinition;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactoryFactory;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowDefinition;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowDefinitionFactoryFactory;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowImplementationFactory;
 import com.amazonaws.services.simpleworkflow.flow.replaydeserializer.TimeStampMixin;
 import com.amazonaws.services.simpleworkflow.flow.worker.AsyncDecisionTaskHandler;
-import com.amazonaws.services.simpleworkflow.model.DecisionTask;
-import com.amazonaws.services.simpleworkflow.model.EventType;
-import com.amazonaws.services.simpleworkflow.model.History;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.RespondDecisionTaskCompletedRequest;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionInfo;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionStartedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.EventType;
+import software.amazon.awssdk.services.swf.model.GetWorkflowExecutionHistoryResponse;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.PollForDecisionTaskResponse;
+import software.amazon.awssdk.services.swf.model.RespondDecisionTaskCompletedRequest;
+import software.amazon.awssdk.services.swf.model.WorkflowExecutionInfo;
+import software.amazon.awssdk.services.swf.model.WorkflowExecutionStartedEventAttributes;
 
 public class WorkflowReplayer<T> {
 
@@ -57,7 +57,7 @@ public class WorkflowReplayer<T> {
 
         @Override
         protected POJOWorkflowImplementationFactory getImplementationFactory(Class<?> workflowImplementationType,
-                                                                             Class<?> workflowInteface, WorkflowType workflowType) {
+                Class<?> workflowInteface, WorkflowType workflowType) {
             return new POJOWorkflowImplementationFactory() {
 
                 @Override
@@ -77,10 +77,10 @@ public class WorkflowReplayer<T> {
         }
     }
 
-    private abstract class DecisionTaskIterator implements Iterator<DecisionTask> {
+    private abstract class DecisionTaskIterator implements Iterator<PollForDecisionTaskResponse> {
 
-        private DecisionTask next;
-
+        private PollForDecisionTaskResponse next;
+        
         private boolean initialized;
 
         protected void initNext() {
@@ -93,32 +93,32 @@ public class WorkflowReplayer<T> {
             if (!initialized) {
                 initNext();
             }
-
+            
             if (next == null) {
                 return false;
             }
-            List<HistoryEvent> events = next.getEvents();
+            List<HistoryEvent> events = next.events();
             if (events.size() == 0) {
                 return false;
             }
             if (replayUpToEventId == 0) {
                 return true;
             }
-            HistoryEvent firstEvent = next.getEvents().get(0);
-            return firstEvent.getEventId() <= replayUpToEventId;
+            HistoryEvent firstEvent = next.events().get(0);
+            return firstEvent.eventId() <= replayUpToEventId;
         }
 
         @Override
-        public DecisionTask next() {
+        public PollForDecisionTaskResponse next() {
             if (!hasNext()) {
                 throw new IllegalStateException("hasNext() == false");
             }
-            DecisionTask result = next;
-            if (next.getNextPageToken() == null) {
+            PollForDecisionTaskResponse result = next;
+            if (next.nextPageToken() == null) {
                 next = null;
             }
             else {
-                next = getNextHistoryTask(next.getNextPageToken());
+                next = getNextHistoryTask(next.nextPageToken());
             }
             return result;
         }
@@ -136,12 +136,12 @@ public class WorkflowReplayer<T> {
                 return events;
             }
             HistoryEvent lastEvent = events.get(events.size() - 1);
-            if (lastEvent.getEventId() <= replayUpToEventId) {
+            if (lastEvent.eventId() <= replayUpToEventId) {
                 return events;
             }
             List<HistoryEvent> truncated = new ArrayList<HistoryEvent>();
             for (HistoryEvent event : events) {
-                if (event.getEventId() > replayUpToEventId) {
+                if (event.eventId() > replayUpToEventId) {
                     break;
                 }
                 truncated.add(event);
@@ -152,13 +152,13 @@ public class WorkflowReplayer<T> {
             return truncated;
         }
 
-        protected abstract DecisionTask getNextHistoryTask(String nextPageToken);
+        protected abstract PollForDecisionTaskResponse getNextHistoryTask(String nextPageToken);
 
     }
 
     private class ServiceDecisionTaskIterator extends DecisionTaskIterator {
 
-        private final AmazonSimpleWorkflow service;
+        private final SwfClient service;
 
         private final String domain;
 
@@ -166,32 +166,33 @@ public class WorkflowReplayer<T> {
 
         private final SimpleWorkflowClientConfig config;
 
-        public ServiceDecisionTaskIterator(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution) {
+        public ServiceDecisionTaskIterator(SwfClient service, String domain, WorkflowExecution workflowExecution) {
             this(service, domain, workflowExecution, null);
         }
 
-        public ServiceDecisionTaskIterator(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution, SimpleWorkflowClientConfig config) {
+        public ServiceDecisionTaskIterator(SwfClient service, String domain, WorkflowExecution workflowExecution, SimpleWorkflowClientConfig config) {
             this.service = service;
             this.domain = domain;
             this.workflowExecution = workflowExecution;
             this.config = config;
         }
 
-        protected DecisionTask getNextHistoryTask(String nextPageToken) {
+        protected PollForDecisionTaskResponse getNextHistoryTask(String nextPageToken) {
             WorkflowExecutionInfo executionInfo = WorkflowExecutionUtils.describeWorkflowInstance(service, domain,
                     workflowExecution, config);
-            History history = WorkflowExecutionUtils.getHistoryPage(nextPageToken, service, domain, workflowExecution, config);
-            DecisionTask task = new DecisionTask();
-            List<HistoryEvent> events = history.getEvents();
+            GetWorkflowExecutionHistoryResponse history = WorkflowExecutionUtils.getHistoryPage(nextPageToken, service, domain, workflowExecution, config);
+
+            List<HistoryEvent> events = history.events();
             events = truncateHistory(events);
             if (events == null) {
                 return null;
             }
-            task.setEvents(events);
-            task.setWorkflowExecution(workflowExecution);
-            task.setWorkflowType(executionInfo.getWorkflowType());
-            task.setNextPageToken(history.getNextPageToken());
-            return task;
+            return PollForDecisionTaskResponse.builder()
+                .events(events)
+                .workflowExecution(workflowExecution.toSdkType())
+                .workflowType(executionInfo.workflowType())
+                .nextPageToken(history.nextPageToken())
+                .build();
         }
 
     }
@@ -208,14 +209,13 @@ public class WorkflowReplayer<T> {
         }
 
         @Override
-        protected DecisionTask getNextHistoryTask(String nextPageToken) {
-            DecisionTask result = new DecisionTask();
+        protected PollForDecisionTaskResponse getNextHistoryTask(String nextPageToken) {
             Iterator<HistoryEvent> iterator = history.iterator();
             if (!iterator.hasNext()) {
                 throw new IllegalStateException("empty history");
             }
             HistoryEvent startEvent = iterator.next();
-            WorkflowExecutionStartedEventAttributes startedAttributes = startEvent.getWorkflowExecutionStartedEventAttributes();
+            WorkflowExecutionStartedEventAttributes startedAttributes = startEvent.workflowExecutionStartedEventAttributes();
             if (startedAttributes == null) {
                 throw new IllegalStateException("first event is not WorkflowExecutionStarted: " + startEvent);
             }
@@ -228,11 +228,11 @@ public class WorkflowReplayer<T> {
             long startedEventId = 0;
             while (iterator.hasNext()) {
                 HistoryEvent event = iterator.next();
-                eventType = EventType.fromValue(event.getEventType());
+                eventType = EventType.fromValue(event.eventTypeAsString());
                 events.add(event);
-                if (eventType == EventType.DecisionTaskStarted) {
+                if (eventType == EventType.DECISION_TASK_STARTED) {
                     previousStartedEventId = startedEventId;
-                    startedEventId = event.getEventId();
+                    startedEventId = event.eventId();
                     lastStartedIndex = index;
                 }
                 index++;
@@ -240,91 +240,91 @@ public class WorkflowReplayer<T> {
             if (events.size() > lastStartedIndex + 1) {
                 events = events.subList(0, lastStartedIndex + 1);
             }
-            result.setEvents(events);
-            result.setPreviousStartedEventId(previousStartedEventId);
-            result.setStartedEventId(startedEventId);
-            result.setWorkflowExecution(workflowExecution);
-            WorkflowType workflowType = startedAttributes.getWorkflowType();
-            result.setWorkflowType(workflowType);
-            return result;
+            return PollForDecisionTaskResponse.builder()
+                .events(events)
+                .previousStartedEventId(previousStartedEventId)
+                .startedEventId(startedEventId)
+                .workflowExecution(workflowExecution.toSdkType())
+                .workflowType(startedAttributes.workflowType())
+                .build();
         }
     }
 
-    private final Iterator<DecisionTask> taskIterator;
+    private final Iterator<PollForDecisionTaskResponse> taskIterator;
 
     private final AsyncDecisionTaskHandler taskHandler;
 
     private int replayUpToEventId;
-
+    
     private final AtomicBoolean replayed = new AtomicBoolean();
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            Class<T> workflowImplementationType) throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+            Class<T> workflowImplementationType) throws InstantiationException, IllegalAccessException {
         this(service, domain, workflowExecution, workflowImplementationType, null);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            Class<T> workflowImplementationType, SimpleWorkflowClientConfig config) throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+            Class<T> workflowImplementationType, SimpleWorkflowClientConfig config) throws InstantiationException, IllegalAccessException {
         this(service, domain, workflowExecution, workflowImplementationType, config, null);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            Class<T> workflowImplementationType, SimpleWorkflowClientConfig config, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+        Class<T> workflowImplementationType, SimpleWorkflowClientConfig config, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException {
         POJOWorkflowDefinitionFactoryFactory ff = new POJOWorkflowDefinitionFactoryFactory();
         ff.addWorkflowImplementationType(workflowImplementationType);
         taskIterator = new ServiceDecisionTaskIterator(service, domain, workflowExecution, config);
         taskHandler = new AsyncDecisionTaskHandler(ff, childWorkflowIdHandler);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            final T workflowImplementation) throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+            final T workflowImplementation) throws InstantiationException, IllegalAccessException {
         this(service, domain, workflowExecution, workflowImplementation, null);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            final T workflowImplementation, SimpleWorkflowClientConfig config) throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+            final T workflowImplementation, SimpleWorkflowClientConfig config) throws InstantiationException, IllegalAccessException {
         this(service, domain, workflowExecution, workflowImplementation, null, null);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            final T workflowImplementation, SimpleWorkflowClientConfig config, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+        final T workflowImplementation, SimpleWorkflowClientConfig config, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException {
         WorkflowDefinitionFactoryFactory ff = new WorkflowReplayerPOJOFactoryFactory(workflowImplementation);
         taskIterator = new ServiceDecisionTaskIterator(service, domain, workflowExecution, config);
         taskHandler = new AsyncDecisionTaskHandler(ff, childWorkflowIdHandler);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory)
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory)
             throws InstantiationException, IllegalAccessException {
         this(service, domain, workflowExecution, workflowDefinitionFactoryFactory, null);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, SimpleWorkflowClientConfig config)
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, SimpleWorkflowClientConfig config)
             throws InstantiationException, IllegalAccessException {
         this(service, domain, workflowExecution, workflowDefinitionFactoryFactory, config, null);
     }
 
-    public WorkflowReplayer(AmazonSimpleWorkflow service, String domain, WorkflowExecution workflowExecution,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, SimpleWorkflowClientConfig config,
-                            ChildWorkflowIdHandler childWorkflowIdHandler)
-            throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(SwfClient service, String domain, WorkflowExecution workflowExecution,
+        WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, SimpleWorkflowClientConfig config,
+        ChildWorkflowIdHandler childWorkflowIdHandler)
+        throws InstantiationException, IllegalAccessException {
         taskIterator = new ServiceDecisionTaskIterator(service, domain, workflowExecution, config);
         taskHandler = new AsyncDecisionTaskHandler(workflowDefinitionFactoryFactory, childWorkflowIdHandler);
     }
 
     public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution,
-                            Class<T> workflowImplementationType) throws InstantiationException, IllegalAccessException {
+            Class<T> workflowImplementationType) throws InstantiationException, IllegalAccessException {
         this(history, workflowExecution, workflowImplementationType, false);
     }
 
     public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution,
-                            Class<T> workflowImplementationType, boolean skipFailedCheck) throws InstantiationException, IllegalAccessException {
+            Class<T> workflowImplementationType, boolean skipFailedCheck) throws InstantiationException, IllegalAccessException {
         this(history, workflowExecution, workflowImplementationType, skipFailedCheck, null);
     }
 
     public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution,
-                            Class<T> workflowImplementationType, boolean skipFailedCheck, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException {
+        Class<T> workflowImplementationType, boolean skipFailedCheck, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException {
         POJOWorkflowDefinitionFactoryFactory ff = new POJOWorkflowDefinitionFactoryFactory();
         ff.addWorkflowImplementationType(workflowImplementationType);
         taskIterator = new HistoryIterableDecisionTaskIterator(workflowExecution, history);
@@ -337,21 +337,21 @@ public class WorkflowReplayer<T> {
     }
 
     public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution, final T workflowImplementation, ChildWorkflowIdHandler childWorkflowIdHandler)
-            throws InstantiationException, IllegalAccessException {
+        throws InstantiationException, IllegalAccessException {
         WorkflowDefinitionFactoryFactory ff = new WorkflowReplayerPOJOFactoryFactory(workflowImplementation);
         taskIterator = new HistoryIterableDecisionTaskIterator(workflowExecution, history);
         taskHandler = new AsyncDecisionTaskHandler(ff, childWorkflowIdHandler);
     }
 
     public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory)
+            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory)
             throws InstantiationException, IllegalAccessException {
         this(history, workflowExecution, workflowDefinitionFactoryFactory, null);
     }
 
     public WorkflowReplayer(Iterable<HistoryEvent> history, WorkflowExecution workflowExecution,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, ChildWorkflowIdHandler childWorkflowIdHandler)
-            throws InstantiationException, IllegalAccessException {
+        WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, ChildWorkflowIdHandler childWorkflowIdHandler)
+        throws InstantiationException, IllegalAccessException {
         taskIterator = new HistoryIterableDecisionTaskIterator(workflowExecution, history);
         taskHandler = new AsyncDecisionTaskHandler(workflowDefinitionFactoryFactory, childWorkflowIdHandler);
     }
@@ -367,7 +367,7 @@ public class WorkflowReplayer<T> {
     }
 
     public WorkflowReplayer(String historyEvents, WorkflowExecution workflowExecution,
-                            Class<T> workflowImplementationType, boolean skipFailedCheck, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException, IOException {
+        Class<T> workflowImplementationType, boolean skipFailedCheck, ChildWorkflowIdHandler childWorkflowIdHandler) throws InstantiationException, IllegalAccessException, IOException {
         ObjectMapper mapper = new ObjectMapper();
         mapper.addMixIn(HistoryEvent.class, TimeStampMixin.class);
         ObjectReader reader = mapper.readerFor(new TypeReference<List<HistoryEvent>>() {}).withRootName("events");
@@ -385,7 +385,7 @@ public class WorkflowReplayer<T> {
     }
 
     public WorkflowReplayer(String historyEvents, WorkflowExecution workflowExecution, final T workflowImplementation, ChildWorkflowIdHandler childWorkflowIdHandler)
-            throws InstantiationException, IllegalAccessException, IOException {
+        throws InstantiationException, IllegalAccessException, IOException {
         ObjectMapper mapper = new ObjectMapper();
         mapper.addMixIn(HistoryEvent.class, TimeStampMixin.class);
         ObjectReader reader = mapper.readerFor(new TypeReference<List<HistoryEvent>>() {}).withRootName("events");
@@ -402,7 +402,7 @@ public class WorkflowReplayer<T> {
     }
 
     public WorkflowReplayer(String historyEvents, WorkflowExecution workflowExecution,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, ChildWorkflowIdHandler childWorkflowIdHandler) throws IOException {
+        WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, ChildWorkflowIdHandler childWorkflowIdHandler) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         mapper.addMixIn(HistoryEvent.class, TimeStampMixin.class);
         ObjectReader reader = mapper.readerFor(new TypeReference<List<HistoryEvent>>() {}).withRootName("events");
@@ -412,40 +412,40 @@ public class WorkflowReplayer<T> {
         taskHandler = new AsyncDecisionTaskHandler(workflowDefinitionFactoryFactory, childWorkflowIdHandler);
     }
 
-    public WorkflowReplayer(Iterator<DecisionTask> decisionTasks, Class<T> workflowImplementationType)
+    public WorkflowReplayer(Iterator<PollForDecisionTaskResponse> decisionTasks, Class<T> workflowImplementationType)
             throws InstantiationException, IllegalAccessException {
         this(decisionTasks, workflowImplementationType, null);
     }
 
-    public WorkflowReplayer(Iterator<DecisionTask> decisionTasks, Class<T> workflowImplementationType, ChildWorkflowIdHandler childWorkflowIdHandler)
-            throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(Iterator<PollForDecisionTaskResponse> decisionTasks, Class<T> workflowImplementationType, ChildWorkflowIdHandler childWorkflowIdHandler)
+        throws InstantiationException, IllegalAccessException {
         POJOWorkflowDefinitionFactoryFactory ff = new POJOWorkflowDefinitionFactoryFactory();
         ff.addWorkflowImplementationType(workflowImplementationType);
         taskIterator = decisionTasks;
         taskHandler = new AsyncDecisionTaskHandler(ff, childWorkflowIdHandler);
     }
 
-    public WorkflowReplayer(Iterator<DecisionTask> decisionTasks, final T workflowImplementation)
+    public WorkflowReplayer(Iterator<PollForDecisionTaskResponse> decisionTasks, final T workflowImplementation)
             throws InstantiationException, IllegalAccessException {
         this(decisionTasks, workflowImplementation, null);
     }
 
-    public WorkflowReplayer(Iterator<DecisionTask> decisionTasks, final T workflowImplementation, ChildWorkflowIdHandler childWorkflowIdHandler)
-            throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(Iterator<PollForDecisionTaskResponse> decisionTasks, final T workflowImplementation, ChildWorkflowIdHandler childWorkflowIdHandler)
+        throws InstantiationException, IllegalAccessException {
         WorkflowDefinitionFactoryFactory ff = new WorkflowReplayerPOJOFactoryFactory(workflowImplementation);
         taskIterator = decisionTasks;
         taskHandler = new AsyncDecisionTaskHandler(ff, childWorkflowIdHandler);
     }
 
-    public WorkflowReplayer(Iterator<DecisionTask> decisionTasks,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory)
+    public WorkflowReplayer(Iterator<PollForDecisionTaskResponse> decisionTasks,
+            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory)
             throws InstantiationException, IllegalAccessException {
         this(decisionTasks, workflowDefinitionFactoryFactory, null);
     }
 
-    public WorkflowReplayer(Iterator<DecisionTask> decisionTasks,
-                            WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, ChildWorkflowIdHandler childWorkflowIdHandler)
-            throws InstantiationException, IllegalAccessException {
+    public WorkflowReplayer(Iterator<PollForDecisionTaskResponse> decisionTasks,
+        WorkflowDefinitionFactoryFactory workflowDefinitionFactoryFactory, ChildWorkflowIdHandler childWorkflowIdHandler)
+        throws InstantiationException, IllegalAccessException {
         taskIterator = decisionTasks;
         taskHandler = new AsyncDecisionTaskHandler(workflowDefinitionFactoryFactory, childWorkflowIdHandler);
     }
@@ -456,7 +456,7 @@ public class WorkflowReplayer<T> {
 
     /**
      * The replay stops at the event with the given eventId. Default is 0.
-     *
+     * 
      * @param replayUpToEventId
      *            0 means the whole history.
      */
@@ -466,7 +466,7 @@ public class WorkflowReplayer<T> {
 
     public RespondDecisionTaskCompletedRequest replay() throws Exception {
         checkReplayed();
-        return taskHandler.handleDecisionTask(taskIterator);
+        return taskHandler.handleDecisionTask(taskIterator).getRespondDecisionTaskCompletedRequest();
     }
 
     @SuppressWarnings("unchecked")
@@ -486,7 +486,7 @@ public class WorkflowReplayer<T> {
         checkReplayed();
         return taskHandler.getAsynchronousThreadDumpAsString(taskIterator);
     }
-
+    
     private void checkReplayed() {
         if (!replayed.compareAndSet(false, true)) {
             throw new IllegalStateException("WorkflowReplayer instance can be used only once.");

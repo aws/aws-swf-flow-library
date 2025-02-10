@@ -19,12 +19,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricsRegistry;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOActivityImplementationFactory;
 import com.amazonaws.services.simpleworkflow.flow.worker.GenericActivityWorker;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import software.amazon.awssdk.services.swf.SwfClient;
 
 public class ActivityWorker implements WorkerBase {
 
@@ -32,11 +33,11 @@ public class ActivityWorker implements WorkerBase {
 
     private final POJOActivityImplementationFactory factory;
 
-    public ActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
+    public ActivityWorker(SwfClient service, String domain, String taskListToPoll) {
         this(service, domain, taskListToPoll, null);
     }
 
-    public ActivityWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+    public ActivityWorker(SwfClient service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
         this(new GenericActivityWorker(service, domain, taskListToPoll, config));
     }
 
@@ -108,7 +109,7 @@ public class ActivityWorker implements WorkerBase {
     }
 
     @Override
-    public AmazonSimpleWorkflow getService() {
+    public SwfClient getService() {
         return genericWorker.getService();
     }
 
@@ -228,6 +229,16 @@ public class ActivityWorker implements WorkerBase {
     }
 
     @Override
+    public MetricsRegistry getMetricsRegistry() {
+        return genericWorker.getMetricsRegistry();
+    }
+
+    @Override
+    public void setMetricsRegistry(MetricsRegistry factory) {
+        genericWorker.setMetricsRegistry(factory);
+    }
+
+    @Override
     public void setAllowCoreThreadTimeOut(boolean allowCoreThreadTimeOut) {
         genericWorker.setAllowCoreThreadTimeOut(allowCoreThreadTimeOut);
     }
@@ -271,7 +282,7 @@ public class ActivityWorker implements WorkerBase {
     public boolean isDisableTypeRegistrationOnStart() {
         return genericWorker.isDisableTypeRegistrationOnStart();
     }
-
+    
     @Override
     public void registerTypesToPoll() {
         genericWorker.registerTypesToPoll();

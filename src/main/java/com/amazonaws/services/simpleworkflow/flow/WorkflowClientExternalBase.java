@@ -14,12 +14,11 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import java.util.Map;
-
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClientExternal;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import java.util.Map;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 public abstract class WorkflowClientExternalBase implements WorkflowClientExternal {
     

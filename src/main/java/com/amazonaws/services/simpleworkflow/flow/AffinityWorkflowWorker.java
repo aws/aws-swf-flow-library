@@ -14,18 +14,17 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
-import java.util.function.Supplier;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
+import com.amazonaws.services.simpleworkflow.flow.worker.GenericAffinityWorkflowWorker;
+import software.amazon.awssdk.services.swf.SwfClient;
 
-public class DefaultChildWorkflowIdHandler implements ChildWorkflowIdHandler {
+public class AffinityWorkflowWorker extends WorkflowWorker {
 
-    @Override
-    public String generateWorkflowId(WorkflowExecution currentWorkflow, Supplier<String> nextId) {
-        return String.format("%s:%s", currentWorkflow.getRunId(), nextId.get());
+    public AffinityWorkflowWorker(SwfClient service, String domain, SimpleWorkflowClientConfig config) {
+        this(new GenericAffinityWorkflowWorker(service, domain, config));
     }
 
-    @Override
-    public String extractRequestedWorkflowId(String childWorkflowId) {
-        return childWorkflowId;
+    public AffinityWorkflowWorker(GenericAffinityWorkflowWorker genericWorker) {
+        super(genericWorker);
     }
 }

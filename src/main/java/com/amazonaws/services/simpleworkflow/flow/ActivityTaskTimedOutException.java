@@ -14,8 +14,8 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskTimeoutType;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
+import software.amazon.awssdk.services.swf.model.ActivityTaskTimeoutType;
 
 /**
  * Exception that indicates Activity time out.

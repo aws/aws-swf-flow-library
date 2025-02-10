@@ -14,11 +14,11 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClientExternal;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
 import com.amazonaws.services.simpleworkflow.flow.worker.GenericWorkflowClientExternalImpl;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import software.amazon.awssdk.services.swf.SwfClient;
 
 public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowClientFactoryExternal<T> {
 
@@ -28,11 +28,11 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
 
     private StartWorkflowOptions startWorkflowOptions = new StartWorkflowOptions();
 
-    public WorkflowClientFactoryExternalBase(AmazonSimpleWorkflow service, String domain) {
+    public WorkflowClientFactoryExternalBase(SwfClient service, String domain) {
         this(new GenericWorkflowClientExternalImpl(service, domain));
     }
 
-    public WorkflowClientFactoryExternalBase(AmazonSimpleWorkflow service, String domain, SimpleWorkflowClientConfig config) {
+    public WorkflowClientFactoryExternalBase(SwfClient service, String domain, SimpleWorkflowClientConfig config) {
         this(new GenericWorkflowClientExternalImpl(service, domain, config));
     }
 
@@ -75,7 +75,7 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
     public T getClient() {
         checkGenericClient();
         String workflowId = genericClient.generateUniqueId();
-        WorkflowExecution workflowExecution = new WorkflowExecution().withWorkflowId(workflowId);
+        WorkflowExecution workflowExecution =  WorkflowExecution.builder().workflowId(workflowId).build();
         return getClient(workflowExecution, startWorkflowOptions, dataConverter, genericClient);
     }
 
@@ -84,7 +84,7 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
         if (workflowId == null || workflowId.isEmpty()) {
             throw new IllegalArgumentException("workflowId");
         }
-        WorkflowExecution workflowExecution = new WorkflowExecution().withWorkflowId(workflowId);
+        WorkflowExecution workflowExecution = WorkflowExecution.builder().workflowId(workflowId).build();
         return getClient(workflowExecution, startWorkflowOptions, dataConverter, genericClient);
     }
 
@@ -105,7 +105,7 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
 
     @Override
     public T getClient(WorkflowExecution workflowExecution, StartWorkflowOptions options, DataConverter dataConverter,
-                       GenericWorkflowClientExternal genericClient) {
+            GenericWorkflowClientExternal genericClient) {
         checkGenericClient();
         return createClientInstance(workflowExecution, options, dataConverter, genericClient);
     }
@@ -119,6 +119,6 @@ public abstract class WorkflowClientFactoryExternalBase<T> implements WorkflowCl
     }
 
     protected abstract T createClientInstance(WorkflowExecution workflowExecution, StartWorkflowOptions options,
-                                              DataConverter dataConverter, GenericWorkflowClientExternal genericClient);
+            DataConverter dataConverter, GenericWorkflowClientExternal genericClient);
 
 }
