@@ -49,10 +49,10 @@ public abstract class ActivityImplementation {
 
     /**
      * Execute external activity or initiate its execution.
-     * 
+     *
      * @param context
      *            information about activity to be executed. Use
-     *            {@link ActivityExecutionContext#getTask()}{@code #input()} to get activity input
+     *            {@code ActivityExecutionContext.getTask().input()} to get activity input
      *            arguments.
      * @return result of activity execution.
      */

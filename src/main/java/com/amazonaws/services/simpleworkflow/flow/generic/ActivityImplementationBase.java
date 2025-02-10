@@ -58,9 +58,10 @@ public abstract class ActivityImplementationBase extends ActivityImplementation 
      * Execute activity.
      * @param input
      *            activity input.
+     * @param context
+     *            Context object passed to an activity implementation.
      * @return result of activity execution
      */
-
     protected abstract String execute(String input, ActivityExecutionContext context) 
             throws ActivityFailureException, CancellationException;
 

@@ -107,6 +107,10 @@ public final class FlowHelpers {
      * <p>
      * Used to support backward compatible changes in activities and workflow
      * APIs.
+     *
+     * @param types array of parameter types to be processed
+     * @param values array of parameter values to be processed, can be null
+     * @return an Object array containing the parameter values, padded with default values if necessary
      */
     public static Object[] getInputParameters(Class<?>[] types, Object[] values) {
 

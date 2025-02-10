@@ -1,5 +1,5 @@
-/**
- * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+/*
+ * Copyright 2012 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -82,6 +82,8 @@ public class WorkflowExecutionUtils {
      * production setting as polling for worklow instance status is an expensive
      * operation.
      *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
      * @param workflowExecution
      *            result of
      *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
@@ -96,6 +98,24 @@ public class WorkflowExecutionUtils {
         return waitForWorkflowExecutionResult(service, domain, workflowExecution, null);
     }
 
+    /**
+     * Blocks until workflow instance completes and returns its result. Useful
+     * for unit tests and during development. <strong>Never</strong> use in
+     * production setting as polling for worklow instance status is an expensive
+     * operation.
+     *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param config - SWF client configuration
+     * @return workflow instance result.
+     * @throws InterruptedException
+     *             if thread is interrupted
+     * @throws RuntimeException
+     *             if workflow instance ended up in any state but completed
+     */
     public static WorkflowExecutionCompletedEventAttributes waitForWorkflowExecutionResult(SwfClient service,
             String domain, WorkflowExecution workflowExecution, SimpleWorkflowClientConfig config) throws InterruptedException {
         try {
@@ -111,9 +131,13 @@ public class WorkflowExecutionUtils {
      * <strong>Never</strong> use in production setting as polling for worklow
      * instance status is an expensive operation.
      *
+     * @param service - SWF client
      * @param workflowExecution
      *            result of
      *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param domain Registered Workflow domain
+     * @param timeoutSeconds
+     *            maximum time to wait for completion. 0 means wait forever.
      * @return workflow instance result.
      * @throws InterruptedException
      *             if thread is interrupted
@@ -128,6 +152,28 @@ public class WorkflowExecutionUtils {
         return waitForWorkflowExecutionResult(service, domain, workflowExecution, timeoutSeconds, null);
     }
 
+    /**
+     * Blocks until workflow instance completes and returns its result. Useful
+     * for unit tests and during development. <strong>Never</strong> use in
+     * production setting as polling for worklow instance status is an expensive
+     * operation.
+     *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param config - SWF client configuration
+     * @param timeoutSeconds
+     *            maximum time to wait for completion. 0 means wait forever.
+     * @return workflow instance result.
+     * @throws InterruptedException
+     *             if thread is interrupted
+     * @throws TimeoutException
+     *             if instance is not complete after specified timeout
+     * @throws RuntimeException
+     *             if workflow instance ended up in any state but completed
+     */
     public static WorkflowExecutionCompletedEventAttributes waitForWorkflowExecutionResult(SwfClient service,
            String domain, WorkflowExecution workflowExecution, long timeoutSeconds, SimpleWorkflowClientConfig config)
             throws InterruptedException, TimeoutException {
@@ -140,9 +186,17 @@ public class WorkflowExecutionUtils {
     }
 
     /**
-     * Returns result of workflow instance execution. result of
-     * {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * Blocks until workflow instance completes and returns its result. Useful
+     * for unit tests and during development. <strong>Never</strong> use in
+     * production setting as polling for worklow instance status is an expensive
+     * operation.
      *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @return workflow instance result.
      * @throws IllegalStateException
      *             if workflow is still running
      * @throws RuntimeException
@@ -153,6 +207,24 @@ public class WorkflowExecutionUtils {
         return getWorkflowExecutionResult(service, domain, workflowExecution, null);
     }
 
+    /**
+     * Blocks until workflow instance completes and returns its result. Useful
+     * for unit tests and during development. <strong>Never</strong> use in
+     * production setting as polling for worklow instance status is an expensive
+     * operation.
+     *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param config - SWF client configuration
+     * @return workflow instance result.
+     * @throws IllegalStateException
+     *             if workflow is still running
+     * @throws RuntimeException
+     *             if workflow instance ended up in any state but completed
+     */
     public static WorkflowExecutionCompletedEventAttributes getWorkflowExecutionResult(SwfClient service,
            String domain, WorkflowExecution workflowExecution, SimpleWorkflowClientConfig config) {
         HistoryEvent closeEvent = getInstanceCloseEvent(service, domain, workflowExecution, config);
@@ -276,10 +348,14 @@ public class WorkflowExecutionUtils {
      * production setting as polling for worklow instance status is an expensive
      * operation.
      *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
      * @param workflowExecution
      *            result of
      *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
      * @return instance close status
+     * @throws InterruptedException
+     *             if thread is interrupted
      */
     public static String waitForWorkflowInstanceCompletion(SwfClient service, String domain,
             WorkflowExecution workflowExecution) throws InterruptedException {
@@ -299,14 +375,20 @@ public class WorkflowExecutionUtils {
      * Waits up to specified timeout for workflow instance completion.
      * <strong>Never</strong> use in production setting as polling for worklow
      * instance status is an expensive operation.
-     *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
      * @param workflowExecution
      *            result of
      *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
      * @param timeoutSeconds
      *            maximum time to wait for completion. 0 means wait forever.
      * @return instance close status
+     * @throws InterruptedException
+     *             if thread is interrupted
      * @throws TimeoutException
+     *             if instance is not complete after specified timeout
+     * @throws RuntimeException
+     *             if workflow instance ended up in any state but completed
      */
     public static String waitForWorkflowInstanceCompletion(SwfClient service, String domain,
             WorkflowExecution workflowExecution, long timeoutSeconds)
@@ -314,6 +396,26 @@ public class WorkflowExecutionUtils {
         return waitForWorkflowInstanceCompletion(service, domain, workflowExecution, timeoutSeconds, null);
     }
 
+    /**
+     * Waits up to specified timeout for workflow instance completion.
+     * <strong>Never</strong> use in production setting as polling for worklow
+     * instance status is an expensive operation.
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param timeoutSeconds
+     *            maximum time to wait for completion. 0 means wait forever.
+     * @param config - SWF client configuration
+     * @return instance close status
+     * @throws InterruptedException
+     *             if thread is interrupted
+     * @throws TimeoutException
+     *             if instance is not complete after specified timeout
+     * @throws RuntimeException
+     *             if workflow instance ended up in any state but completed
+     */
     public static String waitForWorkflowInstanceCompletion(SwfClient service, String domain,
            WorkflowExecution workflowExecution, long timeoutSeconds, SimpleWorkflowClientConfig config)
             throws InterruptedException, TimeoutException {
@@ -336,18 +438,24 @@ public class WorkflowExecutionUtils {
 
     /**
      * Like
-     * {@link #waitForWorkflowInstanceCompletion(SwfClient, String, WorkflowExecution, long)}
-     * , except will wait for continued generations of the original workflow
+     * {@link #waitForWorkflowInstanceCompletion(SwfClient, String, WorkflowExecution, long)},
+     * except will wait for continued generations of the original workflow
      * execution too.
      *
-     * @param service
-     * @param domain
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
      * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
      * @param timeoutSeconds
-     * @return
+     *            maximum time to wait for completion. 0 means wait forever.
+     * @return last workflow instance close status
      * @throws InterruptedException
+     *             if thread is interrupted
      * @throws TimeoutException
-     *
+     *             if instance is not complete after specified timeout
+     * @throws RuntimeException
+     *             if workflow instance ended up in any state but completed
      * @see #waitForWorkflowInstanceCompletion(SwfClient, String,
      *      WorkflowExecution, long)
      */
@@ -356,6 +464,31 @@ public class WorkflowExecutionUtils {
         return waitForWorkflowInstanceCompletionAcrossGenerations(service, domain, workflowExecution, timeoutSeconds, null);
     }
 
+
+    /**
+     * Like
+     * {@link #waitForWorkflowInstanceCompletion(SwfClient, String, WorkflowExecution, long)},
+     * except will wait for continued generations of the original workflow
+     * execution too.
+     *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param timeoutSeconds
+     *            maximum time to wait for completion. 0 means wait forever.
+     * @param config - SWF client configuration
+     * @return last workflow instance close status
+     * @throws InterruptedException
+     *             if thread is interrupted
+     * @throws TimeoutException
+     *             if instance is not complete after specified timeout
+     * @throws RuntimeException
+     *             if workflow instance ended up in any state but completed
+     * @see #waitForWorkflowInstanceCompletion(SwfClient, String,
+     *      WorkflowExecution, long)
+     */
     public static String waitForWorkflowInstanceCompletionAcrossGenerations(SwfClient service, String domain,
                 WorkflowExecution workflowExecution, long timeoutSeconds, SimpleWorkflowClientConfig config) throws InterruptedException, TimeoutException {
 
@@ -385,16 +518,23 @@ public class WorkflowExecutionUtils {
         return lastExecutionToRunCloseStatus;
     }
 
+
     /**
      * Like
-     * {@link #waitForWorkflowInstanceCompletionAcrossGenerations(SwfClient, String, WorkflowExecution, long)}
-     * , but with no timeout.
+     * {@link #waitForWorkflowInstanceCompletion(SwfClient, String, WorkflowExecution, long)},
+     * except will wait for continued generations of the original workflow
+     * execution too.
      *
-     * @param service
-     * @param domain
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
      * @param workflowExecution
-     * @return
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @return last workflow instance close status
      * @throws InterruptedException
+     *             if thread is interrupted
+     * @see #waitForWorkflowInstanceCompletion(SwfClient, String,
+     *      WorkflowExecution, long)
      */
     public static String waitForWorkflowInstanceCompletionAcrossGenerations(SwfClient service, String domain,
             WorkflowExecution workflowExecution) throws InterruptedException {
@@ -424,14 +564,29 @@ public class WorkflowExecutionUtils {
     /**
      * Returns workflow instance history in a human readable format.
      *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
      * @param workflowExecution
      *            result of
      *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @return A formatted string containing the workflow execution history with workflow tasks included
      */
     public static String prettyPrintHistory(SwfClient service, String domain, WorkflowExecution workflowExecution) {
         return prettyPrintHistory(service, domain, workflowExecution, null);
     }
 
+    /**
+     * Returns workflow instance history in a human readable format.
+     * It includes workflow tasks events(decider events) by default
+     *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param config - SWF client configuration
+     * @return A formatted string containing the workflow execution history with workflow tasks included
+     */
     public static String prettyPrintHistory(SwfClient service, String domain, WorkflowExecution workflowExecution, SimpleWorkflowClientConfig config) {
         return prettyPrintHistory(service, domain, workflowExecution, true, config);
     }
@@ -439,18 +594,35 @@ public class WorkflowExecutionUtils {
     /**
      * Returns workflow instance history in a human readable format.
      *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
      * @param workflowExecution
      *            result of
      *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
      * @param showWorkflowTasks
      *            when set to false workflow task events (decider events) are
      *            not included
+     * @return A formatted string containing the workflow execution history
      */
     public static String prettyPrintHistory(SwfClient service, String domain, WorkflowExecution workflowExecution,
             boolean showWorkflowTasks) {
         return prettyPrintHistory(service, domain, workflowExecution, showWorkflowTasks, null);
     }
 
+    /**
+     * Returns workflow instance history in a human readable format.
+     *
+     * @param service - SWF client
+     * @param domain Registered Workflow domain
+     * @param workflowExecution
+     *            result of
+     *            {@link SwfClient#startWorkflowExecution(StartWorkflowExecutionRequest)}
+     * @param config - SWF client configuration
+     * @param showWorkflowTasks
+     *            when set to false workflow task events (decider events) are
+     *            not included
+     * @return A formatted string containing the workflow execution history
+     */
     public static String prettyPrintHistory(SwfClient service, String domain, WorkflowExecution workflowExecution,
             boolean showWorkflowTasks, SimpleWorkflowClientConfig config) {
         List<HistoryEvent> events = getHistory(service, domain, workflowExecution, config);
@@ -524,11 +696,21 @@ public class WorkflowExecutionUtils {
      * @param showWorkflowTasks
      *            when set to false workflow task events (decider events) are
      *            not included
+     * @return A formatted string containing the workflow execution history
      */
     public static String prettyPrintHistory(GetWorkflowExecutionHistoryResponse history, boolean showWorkflowTasks) {
         return prettyPrintHistory(history.events(), showWorkflowTasks);
     }
 
+    /**
+     * Returns workflow instance history in a human readable format.
+     *
+     * @param events Workflow instance history events
+     * @param showWorkflowTasks
+     *            when set to false workflow task events (decider events) are
+     *            not included
+     * @return A formatted string containing the workflow execution history
+     */
     public static String prettyPrintHistory(Iterable<HistoryEvent> events, boolean showWorkflowTasks) {
         StringBuffer result = new StringBuffer();
         result.append("{");
@@ -549,6 +731,14 @@ public class WorkflowExecutionUtils {
         return result.toString();
     }
 
+    /**
+     * Returns decision events in a human readable format
+     *
+     * @param decisions
+     *            decisions to pretty print
+     * @return A formatted string containing a JSON-like representation of the decisions,
+     *         with each decision on a new line enclosed in curly braces
+     */
     public static String prettyPrintDecisions(Iterable<Decision> decisions) {
         StringBuffer result = new StringBuffer();
         result.append("{");
@@ -571,6 +761,8 @@ public class WorkflowExecutionUtils {
      *
      * @param event
      *            event to pretty print
+     * @return A formatted string containing a JSON-like representation of the decisions,
+     *         with each decision on a new line enclosed in curly braces
      */
     public static String prettyPrintHistoryEvent(HistoryEvent event) {
         String eventType = event.eventTypeAsString();
@@ -585,6 +777,8 @@ public class WorkflowExecutionUtils {
      *
      * @param decision
      *            event to pretty print
+     *
+     * @return A formatted string containing a JSON-like representation of a single decision
      */
     public static String prettyPrintDecision(Decision decision) {
         return prettyPrintObject(decision, "getDecisionType", true, "", true);
@@ -593,6 +787,15 @@ public class WorkflowExecutionUtils {
     /**
      * Not really a generic method for printing random object graphs. But it
      * works for events and decisions.
+     *
+     * @param object The object to be pretty printed
+     * @param methodToSkip Name of the method to be skipped during processing
+     * @param skipNullsAndEmptyCollections If true, null values and empty collections will be excluded from output
+     * @param indentation The string to use for indentation in the formatted output
+     * @param skipLevel If true, skips adding enclosing braces and additional formatting levels
+     *
+     * @return A formatted string containing a JSON-like representation of the event,
+     *         with each event on a new line enclosed in curly braces
      */
     private static String prettyPrintObject(Object object, String methodToSkip, boolean skipNullsAndEmptyCollections,
             String indentation, boolean skipLevel) {

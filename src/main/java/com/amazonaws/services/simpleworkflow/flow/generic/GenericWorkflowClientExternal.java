@@ -30,6 +30,11 @@ public interface GenericWorkflowClientExternal {
     public String getWorkflowState(WorkflowExecution execution);
     
     /**
+     * Gets the implementation versions for workflow component
+     *
+     * @param execution the workflow execution to get implementation versions for
+     * @return a map containing component names as keys and their implementation versions as values
+     *
      * @see WorkflowContext#isImplementationVersion(String, int)
      */
     public Map<String, Integer> getImplementationVersions(WorkflowExecution execution);
