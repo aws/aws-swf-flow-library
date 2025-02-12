@@ -43,6 +43,8 @@ public @interface Signal {
      * Default is empty-string which means to use the name of annotated method
      * as signal name. 
      * Maximum length is 256 characters.
+     *
+     * @return signal name
      */
 	String name() default "";
 }

@@ -14,8 +14,8 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
-import com.amazonaws.services.simpleworkflow.model.ScheduleActivityTaskFailedCause;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
+import software.amazon.awssdk.services.swf.model.ScheduleActivityTaskFailedCause;
 
 /**
  * Exception used to communicate that activity wasn't scheduled due to some

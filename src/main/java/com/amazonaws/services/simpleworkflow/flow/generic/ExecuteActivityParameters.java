@@ -16,7 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.generic;
 
 import com.amazonaws.services.simpleworkflow.flow.ActivitySchedulingOptions;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
 
 public class ExecuteActivityParameters implements Cloneable {
     private String activityId;

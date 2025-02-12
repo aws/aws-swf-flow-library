@@ -14,9 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CancellationException;
+import static com.amazonaws.services.simpleworkflow.flow.model.ActivityType.fromSdkType;
 
 import com.amazonaws.services.simpleworkflow.flow.ActivityTaskFailedException;
 import com.amazonaws.services.simpleworkflow.flow.ActivityTaskTimedOutException;
@@ -30,16 +28,19 @@ import com.amazonaws.services.simpleworkflow.flow.core.Settable;
 import com.amazonaws.services.simpleworkflow.flow.core.Task;
 import com.amazonaws.services.simpleworkflow.flow.generic.ExecuteActivityParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericActivityClient;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskCanceledEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskCompletedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskFailedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskStartedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskTimedOutEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.ScheduleActivityTaskDecisionAttributes;
-import com.amazonaws.services.simpleworkflow.model.ScheduleActivityTaskFailedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.TaskList;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
+import software.amazon.awssdk.services.swf.model.ActivityTaskCanceledEventAttributes;
+import software.amazon.awssdk.services.swf.model.ActivityTaskCompletedEventAttributes;
+import software.amazon.awssdk.services.swf.model.ActivityTaskFailedEventAttributes;
+import software.amazon.awssdk.services.swf.model.ActivityTaskStartedEventAttributes;
+import software.amazon.awssdk.services.swf.model.ActivityTaskTimedOutEventAttributes;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.ScheduleActivityTaskDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.ScheduleActivityTaskFailedEventAttributes;
+import software.amazon.awssdk.services.swf.model.TaskList;
 
 class GenericActivityClientImpl implements GenericActivityClient {
 
@@ -82,25 +83,25 @@ class GenericActivityClientImpl implements GenericActivityClient {
     public Promise<String> scheduleActivityTask(final ExecuteActivityParameters parameters) {
         final OpenRequestInfo<String, ActivityType> context = new OpenRequestInfo<String, ActivityType>(
                 parameters.getActivityType());
-        final ScheduleActivityTaskDecisionAttributes attributes = new ScheduleActivityTaskDecisionAttributes();
-        attributes.setActivityType(parameters.getActivityType());
-        attributes.setInput(parameters.getInput());
-        attributes.setHeartbeatTimeout(FlowHelpers.secondsToDuration(parameters.getHeartbeatTimeoutSeconds()));
-        attributes.setScheduleToCloseTimeout(FlowHelpers.secondsToDuration(parameters.getScheduleToCloseTimeoutSeconds()));
-        attributes.setScheduleToStartTimeout(FlowHelpers.secondsToDuration(parameters.getScheduleToStartTimeoutSeconds()));
-        attributes.setStartToCloseTimeout(FlowHelpers.secondsToDuration(parameters.getStartToCloseTimeoutSeconds()));
-        attributes.setTaskPriority(FlowHelpers.taskPriorityToString(parameters.getTaskPriority()));
+        ScheduleActivityTaskDecisionAttributes.Builder attributeBuilder = ScheduleActivityTaskDecisionAttributes.builder()
+            .activityType(parameters.getActivityType().toSdkType())
+            .input(parameters.getInput())
+            .heartbeatTimeout(FlowHelpers.secondsToDuration(parameters.getHeartbeatTimeoutSeconds()))
+            .scheduleToCloseTimeout(FlowHelpers.secondsToDuration(parameters.getScheduleToCloseTimeoutSeconds()))
+            .scheduleToStartTimeout(FlowHelpers.secondsToDuration(parameters.getScheduleToStartTimeoutSeconds()))
+            .startToCloseTimeout(FlowHelpers.secondsToDuration(parameters.getStartToCloseTimeoutSeconds()))
+            .taskPriority(FlowHelpers.taskPriorityToString(parameters.getTaskPriority())).control(parameters.getControl());
         String activityId = parameters.getActivityId();
         if (activityId == null) {
             activityId = String.valueOf(decisions.getNextId());
         }
-        attributes.setActivityId(activityId);
-        attributes.setControl(parameters.getControl());
+        attributeBuilder.activityId(activityId);
         String taskList = parameters.getTaskList();
         if (taskList != null && !taskList.isEmpty()) {
-            attributes.setTaskList(new TaskList().withName(taskList));
+            attributeBuilder.taskList(TaskList.builder().name(taskList).build());
         }
-        String taskName = "activityId=" + activityId + ", activityType=" + attributes.getActivityType();
+        final ScheduleActivityTaskDecisionAttributes attributes = attributeBuilder.build();
+        String taskName = "activityId=" + activityId + ", activityType=" + attributes.activityType();
         new ExternalTask() {
 
             @Override
@@ -108,8 +109,8 @@ class GenericActivityClientImpl implements GenericActivityClient {
 
                 decisions.scheduleActivityTask(attributes);
                 context.setCompletionHandle(handle);
-                scheduledActivities.put(attributes.getActivityId(), context);
-                return new ActivityCancellationHandler(attributes.getActivityId(), handle);
+                scheduledActivities.put(attributes.activityId(), context);
+                return new ActivityCancellationHandler(attributes.activityId(), handle);
             }
         }.setName(taskName);
         context.setResultDescription("scheduleActivityTask " + taskName);
@@ -132,7 +133,7 @@ class GenericActivityClientImpl implements GenericActivityClient {
     @Override
     public Promise<String> scheduleActivityTask(String activity, String version, String input) {
         ExecuteActivityParameters parameters = new ExecuteActivityParameters();
-        parameters.setActivityType(new ActivityType().withName(activity).withVersion(version));
+        parameters.setActivityType(ActivityType.builder().name(activity).version(version).build());
         parameters.setInput(input);
         return scheduleActivityTask(parameters);
     }
@@ -141,7 +142,7 @@ class GenericActivityClientImpl implements GenericActivityClient {
     }
 
     void handleActivityTaskCanceled(HistoryEvent event) {
-        ActivityTaskCanceledEventAttributes attributes = event.getActivityTaskCanceledEventAttributes();
+        ActivityTaskCanceledEventAttributes attributes = event.activityTaskCanceledEventAttributes();
         String activityId = decisions.getActivityId(attributes);
         if (decisions.handleActivityTaskCanceled(event)) {
             CancellationException e = new CancellationException();
@@ -156,25 +157,25 @@ class GenericActivityClientImpl implements GenericActivityClient {
     }
 
     void handleScheduleActivityTaskFailed(HistoryEvent event) {
-        ScheduleActivityTaskFailedEventAttributes attributes = event.getScheduleActivityTaskFailedEventAttributes();
-        String activityId = attributes.getActivityId();
+        ScheduleActivityTaskFailedEventAttributes attributes = event.scheduleActivityTaskFailedEventAttributes();
+        String activityId = attributes.activityId();
         OpenRequestInfo<String, ActivityType> scheduled = scheduledActivities.remove(activityId);
         if (decisions.handleScheduleActivityTaskFailed(event)) {
-            String cause = attributes.getCause();
-            ScheduleActivityTaskFailedException failure = new ScheduleActivityTaskFailedException(event.getEventId(),
-                    attributes.getActivityType(), activityId, cause);
+            String cause = attributes.causeAsString();
+            ScheduleActivityTaskFailedException failure = new ScheduleActivityTaskFailedException(event.eventId(),
+                fromSdkType(attributes.activityType()), activityId, cause);
             ExternalTaskCompletionHandle completionHandle = scheduled.getCompletionHandle();
             completionHandle.fail(failure);
         }
     }
 
     void handleActivityTaskCompleted(HistoryEvent event) {
-        ActivityTaskCompletedEventAttributes attributes = event.getActivityTaskCompletedEventAttributes();
+        ActivityTaskCompletedEventAttributes attributes = event.activityTaskCompletedEventAttributes();
         String activityId = decisions.getActivityId(attributes);
         if (decisions.handleActivityTaskClosed(activityId)) {
             OpenRequestInfo<String, ActivityType> scheduled = scheduledActivities.remove(activityId);
             if (scheduled != null) {
-                String result = attributes.getResult();
+                String result = attributes.result();
                 scheduled.getResult().set(result);
                 ExternalTaskCompletionHandle completionHandle = scheduled.getCompletionHandle();
                 completionHandle.complete();
@@ -183,14 +184,14 @@ class GenericActivityClientImpl implements GenericActivityClient {
     }
 
     void handleActivityTaskFailed(HistoryEvent event) {
-        ActivityTaskFailedEventAttributes attributes = event.getActivityTaskFailedEventAttributes();
+        ActivityTaskFailedEventAttributes attributes = event.activityTaskFailedEventAttributes();
         String activityId = decisions.getActivityId(attributes);
         if (decisions.handleActivityTaskClosed(activityId)) {
             OpenRequestInfo<String, ActivityType> scheduled = scheduledActivities.remove(activityId);
             if (scheduled != null) {
-                String reason = attributes.getReason();
-                String details = attributes.getDetails();
-                ActivityTaskFailedException failure = new ActivityTaskFailedException(event.getEventId(),
+                String reason = attributes.reason();
+                String details = attributes.details();
+                ActivityTaskFailedException failure = new ActivityTaskFailedException(event.eventId(),
                         scheduled.getUserContext(), activityId, reason, details);
                 ExternalTaskCompletionHandle completionHandle = scheduled.getCompletionHandle();
                 completionHandle.fail(failure);
@@ -199,14 +200,14 @@ class GenericActivityClientImpl implements GenericActivityClient {
     }
 
     void handleActivityTaskTimedOut(HistoryEvent event) {
-        ActivityTaskTimedOutEventAttributes attributes = event.getActivityTaskTimedOutEventAttributes();
+        ActivityTaskTimedOutEventAttributes attributes = event.activityTaskTimedOutEventAttributes();
         String activityId = decisions.getActivityId(attributes);
         if (decisions.handleActivityTaskClosed(activityId)) {
             OpenRequestInfo<String, ActivityType> scheduled = scheduledActivities.remove(activityId);
             if (scheduled != null) {
-                String timeoutType = attributes.getTimeoutType();
-                String details = attributes.getDetails();
-                ActivityTaskTimedOutException failure = new ActivityTaskTimedOutException(event.getEventId(),
+                String timeoutType = attributes.timeoutTypeAsString();
+                String details = attributes.details();
+                ActivityTaskTimedOutException failure = new ActivityTaskTimedOutException(event.eventId(),
                         scheduled.getUserContext(), activityId, timeoutType, details);
                 ExternalTaskCompletionHandle completionHandle = scheduled.getCompletionHandle();
                 completionHandle.fail(failure);

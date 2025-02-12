@@ -52,6 +52,8 @@ public @interface ExponentialRetry {
      * <p>
      * This value should not be greater than values specified for 
      * maximumRetryPeriod or retryExpirationPeriod.
+     *
+     * @return initial retry interval in seconds
      */
     long initialRetryIntervalSeconds();
 
@@ -60,6 +62,8 @@ public @interface ExponentialRetry {
      * <p>
      * This value should not be less than value specified for
      * initialRetryPeriod. Default value is unlimited.
+     *
+     * @return maximum retry interval in seconds
      */
     long maximumRetryIntervalSeconds() default FlowDefaults.EXPONENTIAL_RETRY_MAXIMUM_RETRY_INTERVAL_SECONDS;
 
@@ -72,6 +76,8 @@ public @interface ExponentialRetry {
      * <p>
      * This value should not be less than value specified for 
      * initialRetryPeriod. Default value is unlimited.
+     *
+     * @return retry expiration time in seconds
      */
     long retryExpirationSeconds() default FlowDefaults.EXPONENTIAL_RETRY_RETRY_EXPIRATION_SECONDS;
 
@@ -80,23 +86,31 @@ public @interface ExponentialRetry {
      * <p>
      * The retry interval will be multiplied by this coefficient after each
      * subsequent failure.  Default is 2.0.
+     *
+     * @return backoff multiplier coefficient
      */
     double backoffCoefficient() default FlowDefaults.EXPONENTIAL_RETRY_BACKOFF_COEFFICIENT;
 
     /**
      * Number of maximum retry attempts (including the initial attempt).
      * Default value is no limit.
+     *
+     * @return maximum number of retry attempts
      */
     int maximumAttempts() default FlowDefaults.EXPONENTIAL_RETRY_MAXIMUM_ATTEMPTS;
 
     /**
      * Default is {@link Throwable} which means that all exceptions are retried.
+     *
+     * @return array of exception classes to retry
      */
     Class<? extends Throwable>[] exceptionsToRetry() default { Throwable.class };
 
     /**
      * What exceptions that match exceptionsToRetry list should be not retried.
      * Default is empty list.
+     *
+     * @return array of exception classes to exclude
      */
     Class<? extends Throwable>[] excludeExceptions() default {};
 

@@ -30,9 +30,13 @@ public interface RetryPolicy {
 
     boolean isRetryable(Throwable failure);
 
+
     /**
-     * @return Time to the next retry. {@link FlowConstants#NONE} means stop
-     *         retrying.
+     * Calculates delay for next retry attempt.
+     * @param firstAttempt Initial attempt timestamp
+     * @param recordedFailure Last failure timestamp
+     * @param numberOfTries Current retry count
+     * @return Time to the next retry.
      */
     long nextRetryDelaySeconds(Date firstAttempt, Date recordedFailure, int numberOfTries);
 }

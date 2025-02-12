@@ -14,28 +14,29 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import java.io.IOException;
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
+import java.io.IOException;
 
 /**
  * Implements conversion through Jackson JSON processor. Consult its
  * documentation on how to ensure that classes are serializable, configure their
  * serialization through annotations and {@link ObjectMapper} parameters.
- *
+ * 
  * <p>
  * Note that default configuration used by this class includes class name of the
  * every serialized value into the produced JSON. It is done to support
  * polymorphic types out of the box. But in some cases it might be beneficial to
  * disable polymorphic support as it produces much more concise and portable
  * output.
- *
+ * 
  * @author fateev
  */
 public class JsonDataConverter extends DataConverter {
@@ -43,6 +44,11 @@ public class JsonDataConverter extends DataConverter {
     private static final Log log = LogFactory.getLog(JsonDataConverter.class);
 
     protected final ObjectMapper mapper;
+
+    abstract class ThrowableMixin {
+        @JsonIgnore
+        abstract String getLocalizedMessage();
+    }
 
     /**
      * Create instance of the converter that uses ObjectMapper with
@@ -55,18 +61,22 @@ public class JsonDataConverter extends DataConverter {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 
-        // This will allow including type information all non-final types.  This allows correct
+        // This will allow including type information all non-final types.  This allows correct 
         // serialization/deserialization of generic collections, for example List<MyType>.
         mapper.activateDefaultTyping(
                 BasicPolymorphicTypeValidator.builder()
                         .allowIfBaseType(Object.class)
                         .build(),
                 DefaultTyping.NON_FINAL);
+
+        mapper.addMixIn(Throwable.class, ThrowableMixin.class);
     }
 
     /**
      * Create instance of the converter that uses {@link ObjectMapper}
      * configured externally.
+     *
+     * @param mapper - the externally configured ObjectMapper instance to use for JSON conversion
      */
     public JsonDataConverter(ObjectMapper mapper) {
         this.mapper = mapper;

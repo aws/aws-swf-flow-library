@@ -20,7 +20,10 @@ import com.amazonaws.services.simpleworkflow.flow.core.Settable;
 import com.amazonaws.services.simpleworkflow.flow.core.TryCatchFinally;
 import com.amazonaws.services.simpleworkflow.flow.generic.ExecuteActivityParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericActivityClient;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
+import java.util.concurrent.TimeUnit;
 
 public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
 
@@ -45,7 +48,7 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
     }
 
     public DynamicActivitiesClientImpl(ActivitySchedulingOptions schedulingOptions, DataConverter dataConverter,
-                                       GenericActivityClient genericClient) {
+            GenericActivityClient genericClient) {
         this.genericClient = genericClient;
 
         if (schedulingOptions == null) {
@@ -92,7 +95,7 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
     }
 
     public <T> Promise<T> scheduleActivity(final ActivityType activityType, final Promise<?>[] arguments,
-                                           final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, final Promise<?>... waitFor) {
+            final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, final Promise<?>... waitFor) {
         return new Functor<T>(arguments) {
 
             @Override
@@ -110,7 +113,7 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
     }
 
     public <T> Promise<T> scheduleActivity(final ActivityType activityType, final Object[] arguments,
-                                           final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, Promise<?>... waitFor) {
+            final ActivitySchedulingOptions optionsOverride, final Class<T> returnType, Promise<?>... waitFor) {
         final Settable<T> result = new Settable<T>();
         new TryCatchFinally(waitFor) {
 
@@ -120,7 +123,11 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
             protected void doTry() throws Throwable {
                 ExecuteActivityParameters parameters = new ExecuteActivityParameters();
                 parameters.setActivityType(activityType);
-                final String stringInput = dataConverter.toData(arguments);
+                final String stringInput = ThreadLocalMetrics.getMetrics().recordSupplier(
+                    () -> dataConverter.toData(arguments),
+                    dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+                    TimeUnit.MILLISECONDS
+                );
                 parameters.setInput(stringInput);
                 final ExecuteActivityParameters _scheduleParameters_ = parameters.createExecuteActivityParametersFromOptions(
                         schedulingOptions, optionsOverride);
@@ -142,7 +149,11 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
                     try {
                         String details = taskFailedException.getDetails();
                         if (details != null) {
-                            Throwable cause = dataConverter.fromData(details, Throwable.class);
+                            final Throwable cause = ThreadLocalMetrics.getMetrics().recordSupplier(
+                                () -> dataConverter.fromData(details, Throwable.class),
+                                dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_DESERIALIZE.getName(),
+                                TimeUnit.MILLISECONDS
+                            );
                             if (cause != null && taskFailedException.getCause() == null) {
                                 taskFailedException.initCause(cause);
                             }
@@ -166,7 +177,11 @@ public class DynamicActivitiesClientImpl implements DynamicActivitiesClient {
                         result.set(null);
                     }
                     else {
-                        T output = dataConverter.fromData(stringOutput.get(), returnType);
+                        final T output = ThreadLocalMetrics.getMetrics().recordSupplier(
+                            () -> dataConverter.fromData(stringOutput.get(), returnType),
+                            dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_DESERIALIZE.getName(),
+                            TimeUnit.MILLISECONDS
+                        );
                         result.set(output);
                     }
                 }

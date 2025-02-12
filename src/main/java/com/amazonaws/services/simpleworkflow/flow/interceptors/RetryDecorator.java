@@ -18,11 +18,17 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.amazonaws.services.simpleworkflow.flow.DecisionContextProviderImpl;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowClock;
+import com.amazonaws.services.simpleworkflow.flow.core.AndPromise;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.core.Settable;
+import com.amazonaws.services.simpleworkflow.flow.core.Task;
 
 /**
  * In case of failures repeats every call to a wrapped object method according
@@ -32,10 +38,13 @@ import com.amazonaws.services.simpleworkflow.flow.core.Settable;
  */
 public class RetryDecorator implements Decorator {
 
-    private final AsyncRetryingExecutor executor;
+    private final RetryPolicy retryPolicy;
+
+    private final WorkflowClock clock;
 
     public RetryDecorator(RetryPolicy retryPolicy, WorkflowClock clock) {
-        executor = new AsyncRetryingExecutor(retryPolicy, clock);
+        this.retryPolicy = retryPolicy;
+        this.clock = clock;
     }
 
     public RetryDecorator(RetryPolicy retryPolicy) {
@@ -68,9 +77,11 @@ public class RetryDecorator implements Decorator {
 
             private final Method method;
 
+            private final AtomicLong firstAttemptTime;
+
             private Settable result;
 
-            private RetriedRunnable(Object[] args, Method method) {
+            private RetriedRunnable(Object[] args, Method method, AtomicLong firstAttemptTime) {
                 this.args = args;
                 Class<?> returnType = method.getReturnType();
                 boolean voidReturnType = Void.TYPE.equals(returnType);
@@ -82,10 +93,29 @@ public class RetryDecorator implements Decorator {
                     result = new Settable();
                 }
                 this.method = method;
+                this.firstAttemptTime = firstAttemptTime;
             }
 
             @Override
             public void run() throws Throwable {
+                List<Promise> waitFors = new ArrayList<>();
+                if (args != null) {
+                    for (Object arg : args) {
+                        if (arg instanceof Promise) {
+                            waitFors.add((Promise) arg);
+                        }
+                        if (arg instanceof Promise[]) {
+                            waitFors.addAll(Arrays.asList((Promise[]) arg));
+                        }
+                    }
+                }
+                AndPromise waitFor = new AndPromise(waitFors);
+                new Task(waitFor) {
+                    @Override
+                    protected void doExecute() throws Throwable {
+                        firstAttemptTime.compareAndSet(0, new DecisionContextProviderImpl().getDecisionContext().getWorkflowClock().currentTimeMillis());
+                    }
+                };
                 if (result == null) {
                     // void return type
                     method.invoke(object, args);
@@ -120,7 +150,9 @@ public class RetryDecorator implements Decorator {
                 throw ite.getTargetException();
             }
 
-            RetriedRunnable command = new RetriedRunnable(args, method);
+            AtomicLong firstAttemptTime = new AtomicLong(0);
+            RetriedRunnable command = new RetriedRunnable(args, method, firstAttemptTime);
+            AsyncRetryingExecutor executor = new AsyncRetryingExecutor(retryPolicy, clock, firstAttemptTime);
             executor.execute(command);
             return command.getResult();
         }

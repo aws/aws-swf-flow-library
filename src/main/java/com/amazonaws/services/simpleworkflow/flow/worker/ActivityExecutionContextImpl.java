@@ -14,40 +14,45 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import java.util.concurrent.CancellationException;
-
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
-import com.amazonaws.services.simpleworkflow.model.ActivityTask;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskStatus;
-import com.amazonaws.services.simpleworkflow.model.RecordActivityTaskHeartbeatRequest;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityTask;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricHelper;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.Metrics;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricsRegistry;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeUnit;
+import lombok.Getter;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.RecordActivityTaskHeartbeatRequest;
+import software.amazon.awssdk.services.swf.model.RecordActivityTaskHeartbeatResponse;
 
 /**
  * Base implementation of an {@link ActivityExecutionContext}.
  * 
  * @see ActivityExecutionContext
  * 
- * @author fateev, suskin
- * 
  */
 class ActivityExecutionContextImpl extends ActivityExecutionContext {
 
-    private final AmazonSimpleWorkflow service;
+    @Getter
+    private final SwfClient service;
 
+    @Getter
     private final String domain;
-    
-    private final ActivityTask task;
 
-    private SimpleWorkflowClientConfig config;
+    private final SimpleWorkflowClientConfig config;
+
+    private final MetricsRegistry metricsRegistry;
 
     /**
      * Create an ActivityExecutionContextImpl with the given attributes.
      * 
      * @param service
-     *            The {@link AmazonSimpleWorkflow} this
+     *            The {@link SwfClient} this
      *            ActivityExecutionContextImpl will send service calls to.
      * @param task
      *            The {@link ActivityTask} this ActivityExecutionContextImpl
@@ -55,15 +60,15 @@ class ActivityExecutionContextImpl extends ActivityExecutionContext {
      * 
      * @see ActivityExecutionContext
      */
-    public ActivityExecutionContextImpl(AmazonSimpleWorkflow service, String domain, ActivityTask task) {
-        this(service, domain, task, null);
+    public ActivityExecutionContextImpl(SwfClient service, String domain, ActivityTask task) {
+        this(service, domain, task, null, ThreadLocalMetrics.getMetrics().getMetricsRegistry());
     }
 
     /**
      * Create an ActivityExecutionContextImpl with the given attributes.
      *
      * @param service
-     *            The {@link AmazonSimpleWorkflow} this
+     *            The {@link SwfClient} this
      *            ActivityExecutionContextImpl will send service calls to.
      * @param task
      *            The {@link ActivityTask} this ActivityExecutionContextImpl
@@ -71,61 +76,46 @@ class ActivityExecutionContextImpl extends ActivityExecutionContext {
      *
      * @see ActivityExecutionContext
      */
-    public ActivityExecutionContextImpl(AmazonSimpleWorkflow service, String domain, ActivityTask task, SimpleWorkflowClientConfig config) {
+    public ActivityExecutionContextImpl(SwfClient service, String domain, ActivityTask task, SimpleWorkflowClientConfig config, MetricsRegistry metricsRegistry) {
+        super(task);
         this.domain = domain;
         this.service = service;
-        this.task = task;
         this.config = config;
+        this.metricsRegistry = metricsRegistry;
     }
 
     /**
-     * @throws CancellationException
-     * @see ActivityExecutionContext#recordActivityHeartbeat(String)
+     * {@inheritDoc}
      */
     @Override
     public void recordActivityHeartbeat(String details) throws CancellationException {
         //TODO: call service with the specified minimal interval (through @ActivityExecutionOptions)
         // allowing more frequent calls of this method.
-        RecordActivityTaskHeartbeatRequest r = new RecordActivityTaskHeartbeatRequest();
-        r.setTaskToken(task.getTaskToken());
-        r.setDetails(details);
-        ActivityTaskStatus status;
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(r, config);
-        status = service.recordActivityTaskHeartbeat(r);
-        if (status.isCancelRequested()) {
-            throw new CancellationException();
+        RecordActivityTaskHeartbeatRequest recordActivityTaskHeartbeatRequest = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(
+            RecordActivityTaskHeartbeatRequest.builder().taskToken(getTask().getTaskToken()).details(details)
+                .build(), config);
+
+        RecordActivityTaskHeartbeatResponse status;
+        /*
+        We associate every SWF API request metrics log entry with information from SDK like Retry Info, Invocation ID, etc.
+        If we have 1 metrics log entry contain information from 2 different SWF API requests, it'd be impossible to know
+        which SDK metrics relate to which of the 2 SWF API requests so, we create a new metrics log entry for every
+        SWF API request.
+        Long-running Activities also benefit from having separate metrics log entry for every heartbeat as otherwise,
+        no metrics will be emitted until the long-running activity completes.
+
+        Customers will be able to easily find all metrics log entries for a given Task or Workflow Execution since each
+        metrics log entry contains enough information like Task Token, Workflow Execution, etc.
+         */
+        try (Metrics metrics = metricsRegistry.newMetrics(MetricName.Operation.EXECUTE_ACTIVITY_TASK.getName())) {
+            MetricHelper.recordMetrics(getTask(), metrics);
+            status = metrics.recordSupplier(() -> service.recordActivityTaskHeartbeat(recordActivityTaskHeartbeatRequest),
+                MetricName.Operation.RECORD_ACTIVITY_TASK_HEARTBEAT.getName(), TimeUnit.MILLISECONDS);
+            final boolean isCancelRequested = status.cancelRequested();
+            metrics.recordCount(MetricName.ACTIVITY_CANCEL_REQUESTED.getName(), isCancelRequested);
+            if (isCancelRequested) {
+                throw new CancellationException();
+            }
         }
     }
-
-    /**
-     * @see ActivityExecutionContext#getTask()
-     */
-    @Override
-    public ActivityTask getTask() {
-        return task;
-    }
-
-    /**
-     * @see ActivityExecutionContext#getService()
-     */
-    @Override
-    public AmazonSimpleWorkflow getService() {
-        return service;
-    }
-
-    @Override
-    public String getTaskToken() {
-        return task.getTaskToken();
-    }
-
-    @Override
-    public WorkflowExecution getWorkflowExecution() {
-        return task.getWorkflowExecution();
-    }
-
-    @Override
-    public String getDomain() {
-        return domain;
-    }
-
 }

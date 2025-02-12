@@ -14,8 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
-
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
 
 /**
  * Exception used to communicate failure of remote activity.

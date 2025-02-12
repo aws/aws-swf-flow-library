@@ -14,8 +14,9 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Contains value that is bound to a currently executing workflow. Has the same
@@ -24,7 +25,7 @@ import java.util.List;
  */
 public class WorkflowExecutionLocal<T> {
 
-    private static class Wrapper<T> {
+    public static class Wrapper<T> {
 
         public T wrapped;
     }
@@ -33,9 +34,11 @@ public class WorkflowExecutionLocal<T> {
      * It is not good idea to rely on the fact that implementation relies on
      * ThreadLocal as it is subject to change.
      */
-    private final ThreadLocal<Wrapper<T>> value = new ThreadLocal<Wrapper<T>>();
+    private final ThreadLocal<Wrapper<T>> value = new ThreadLocal<>();
 
-    private final static List<WorkflowExecutionLocal<?>> locals = new ArrayList<WorkflowExecutionLocal<?>>();
+    private final String workflowExecutionLocalId = UUID.randomUUID().toString();
+
+    private final static Map<String, WorkflowExecutionLocal<?>> locals = new HashMap<>();
 
     /**
      * Must be called before each decision. It is not a good idea to call this
@@ -43,11 +46,11 @@ public class WorkflowExecutionLocal<T> {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public static void before() {
-        List<WorkflowExecutionLocal<?>> currentLocals;
+        Map<String, WorkflowExecutionLocal<?>> currentLocals;
         synchronized (locals) {
-            currentLocals = new ArrayList<WorkflowExecutionLocal<?>>(locals);
+            currentLocals = new HashMap<>(locals);
         }
-        for (WorkflowExecutionLocal local : currentLocals) {
+        for (WorkflowExecutionLocal local : currentLocals.values()) {
             Wrapper w = new Wrapper();
             w.wrapped = local.initialValue();
             local.set(w);
@@ -59,13 +62,41 @@ public class WorkflowExecutionLocal<T> {
      * this method from non framework code for non testing scenarios.
      */
     public static void after() {
-        List<WorkflowExecutionLocal<?>> currentLocals;
+        Map<String, WorkflowExecutionLocal<?>> currentLocals;
         synchronized (locals) {
-            currentLocals = new ArrayList<WorkflowExecutionLocal<?>>(locals);
+            currentLocals = new HashMap<>(locals);
         }
-        for (WorkflowExecutionLocal<?> local : currentLocals) {
+        for (WorkflowExecutionLocal<?> local : currentLocals.values()) {
             local.removeAfter();
         }
+    }
+
+    public static Map<String, Wrapper> saveCurrentValues() {
+        Map<String, WorkflowExecutionLocal<?>> currentLocals;
+        synchronized (locals) {
+            currentLocals = new HashMap<>(locals);
+        }
+        Map<String, Wrapper> currentValues = new HashMap<>();
+        currentLocals.forEach((id, local) -> {
+            if (local.value.get() != null) {
+                Wrapper w = new Wrapper();
+                w.wrapped = local.value.get().wrapped;
+                currentValues.put(id, w);
+            }
+        });
+        return currentValues;
+    }
+
+    public static void restoreFromSavedValues(Map<String, Wrapper> savedValues) {
+        Map<String, WorkflowExecutionLocal<?>> currentLocals;
+        synchronized (locals) {
+            currentLocals = new HashMap<>(locals);
+        }
+        currentLocals.forEach((id, local) -> {
+            if (savedValues.containsKey(id)) {
+                local.set(savedValues.get(id));
+            }
+        });
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -74,7 +105,7 @@ public class WorkflowExecutionLocal<T> {
         w.wrapped = initialValue();
         set(w);
         synchronized (locals) {
-            locals.add(this);
+            locals.put(workflowExecutionLocalId, this);
         }
     }
 

@@ -14,13 +14,14 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.WorkerBase;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
 import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
-import com.amazonaws.services.simpleworkflow.model.DomainAlreadyExistsException;
-import com.amazonaws.services.simpleworkflow.model.RegisterDomainRequest;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricsRegistry;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.NullMetricsRegistry;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -37,8 +38,24 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.DomainAlreadyExistsException;
+import software.amazon.awssdk.services.swf.model.LimitExceededException;
+import software.amazon.awssdk.services.swf.model.RegisterDomainRequest;
 
 public abstract class GenericWorker<T> implements WorkerBase {
+
+    public enum WorkerType {
+        ACTIVITY("Activity"),
+        WORKFLOW("Workflow");
+
+        @Getter
+        private final String name;
+
+        WorkerType(String name) {
+            this.name = name;
+        }
+    }
 
     @RequiredArgsConstructor
     class ExecutorThreadFactory implements ThreadFactory {
@@ -58,6 +75,7 @@ public abstract class GenericWorker<T> implements WorkerBase {
 
     @RequiredArgsConstructor
     private class PollingTask implements Runnable {
+
         private final TaskPoller<T> poller;
 
         @Override
@@ -68,12 +86,15 @@ public abstract class GenericWorker<T> implements WorkerBase {
                     if (pollingExecutor.isShutdown() || workerExecutor.isShutdown()) {
                         return;
                     }
+
+                    pollBackoffThrottler.throttle();
                     final int availableWorkers = workerExecutor.getMaximumPoolSize() - workerExecutor.getActiveCount();
                     if (availableWorkers < 1) {
-                        log.debug("no available workers");
+                        log.warn("Maximum worker thread capacity reached. Polling will not resume until an existing task completes. Consider increasing the worker thread count.");
+                        pollBackoffThrottler.failure();
                         return;
                     }
-                    pollBackoffThrottler.throttle();
+
                     if (pollingExecutor.isShutdown() || workerExecutor.isShutdown()) {
                         return;
                     }
@@ -99,10 +120,7 @@ public abstract class GenericWorker<T> implements WorkerBase {
                         try {
                             workerExecutor.execute(new ExecuteTask(poller, task, pollingSemaphore));
                             log.debug("poll task end");
-                        } catch (Exception e) {
-                            semaphoreNeedsRelease = true;
-                            throw e;
-                        } catch (Error e) {
+                        } catch (Exception | Error e) {
                             semaphoreNeedsRelease = true;
                             throw e;
                         }
@@ -114,7 +132,9 @@ public abstract class GenericWorker<T> implements WorkerBase {
                 }
             } catch (final Throwable e) {
                 pollBackoffThrottler.failure();
-                if (!(e.getCause() instanceof InterruptedException)) {
+                if (e instanceof LimitExceededException) {
+                    log.info("Received LimitExceededException for over-polling on " + taskListToPoll + " TaskList. This is a cue to reduce poll rate on " + taskListToPoll);
+                } else if (!(e.getCause() instanceof InterruptedException)) {
                     uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), e);
                 }
             }
@@ -147,13 +167,15 @@ public abstract class GenericWorker<T> implements WorkerBase {
         }
     }
 
+    public static final int DEFAULT_EXECUTOR_THREAD_COUNT = 100;
+
     private static final Log log = LogFactory.getLog(GenericWorker.class);
 
     protected static final int MAX_IDENTITY_LENGTH = 256;
 
     @Getter
     @Setter
-    protected AmazonSimpleWorkflow service;
+    protected SwfClient service;
 
     @Getter
     @Setter
@@ -210,13 +232,13 @@ public abstract class GenericWorker<T> implements WorkerBase {
 
     @Getter
     @Setter
-    private String identity = ManagementFactory.getRuntimeMXBean().getName();
+    private String identity;
 
     @Getter
     private int pollThreadCount = 1;
 
     @Getter
-    protected int executeThreadCount = 100;
+    private int executeThreadCount = DEFAULT_EXECUTOR_THREAD_COUNT;
 
     private BackoffThrottler pollBackoffThrottler;
 
@@ -224,13 +246,7 @@ public abstract class GenericWorker<T> implements WorkerBase {
 
     @Getter
     @Setter
-    protected UncaughtExceptionHandler uncaughtExceptionHandler = new UncaughtExceptionHandler() {
-
-        @Override
-        public void uncaughtException(Thread t, Throwable e) {
-            log.error("Failure in thread " + t.getName(), e);
-        }
-    };
+    protected UncaughtExceptionHandler uncaughtExceptionHandler = (t, e) -> log.error("Failure in thread " + t.getName(), e);
 
     private TaskPoller<T> poller;
 
@@ -238,11 +254,15 @@ public abstract class GenericWorker<T> implements WorkerBase {
     @Setter
     private SimpleWorkflowClientConfig clientConfig;
 
-    public GenericWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
+    @Getter
+    @Setter
+    private MetricsRegistry metricsRegistry;
+
+    public GenericWorker(SwfClient service, String domain, String taskListToPoll) {
         this(service, domain, taskListToPoll, null);
     }
 
-    public GenericWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig clientConfig) {
+    public GenericWorker(SwfClient service, String domain, String taskListToPoll, SimpleWorkflowClientConfig clientConfig) {
         this();
         this.service = service;
         this.domain = domain;
@@ -254,6 +274,16 @@ public abstract class GenericWorker<T> implements WorkerBase {
         identity = ManagementFactory.getRuntimeMXBean().getName();
         int length = Math.min(identity.length(), GenericWorker.MAX_IDENTITY_LENGTH);
         identity = identity.substring(0, length);
+        metricsRegistry = new NullMetricsRegistry();
+    }
+
+    GenericWorker(SwfClient service, String domain, String taskListToPoll,
+        ScheduledExecutorService pollerExecutor, ThreadPoolExecutor workerExecutor, TaskPoller taskPoller, Boolean startRequested) {
+        this(service, domain, taskListToPoll);
+        this.pollingExecutor = pollerExecutor;
+        this.workerExecutor = workerExecutor;
+        this.poller = taskPoller;
+        this.startRequested.set(startRequested);
     }
 
     @Override
@@ -296,8 +326,10 @@ public abstract class GenericWorker<T> implements WorkerBase {
         workerExecutor.allowCoreThreadTimeOut(allowCoreThreadTimeOut);
         ExecutorThreadFactory pollExecutorThreadFactory = getExecutorThreadFactory("Worker");
         workerExecutor.setThreadFactory(pollExecutorThreadFactory);
+        metricsRegistry.getExecutorServiceMonitor().monitor(workerExecutor, "com.amazonaws.services.simpleworkflow.flow:type=ThreadPoolState,name=" + getWorkerType().getName() + "Worker");
 
         pollingExecutor = new ScheduledThreadPoolExecutor(pollThreadCount, getExecutorThreadFactory("Poller"));
+        metricsRegistry.getExecutorServiceMonitor().monitor(pollingExecutor, "com.amazonaws.services.simpleworkflow.flow:type=ThreadPoolState,name=" + getWorkerType().getName() + "Poller");
         for (int i = 0; i < pollThreadCount; i++) {
             pollingExecutor.scheduleWithFixedDelay(new PollingTask(poller), 0, 1, TimeUnit.NANOSECONDS);
         }
@@ -313,17 +345,18 @@ public abstract class GenericWorker<T> implements WorkerBase {
 
     protected abstract void checkRequiredProperties();
 
+    protected abstract WorkerType getWorkerType();
+
     private void registerDomain() {
         if (domainRetentionPeriodInDays == FlowConstants.NONE) {
             throw new IllegalStateException("required property domainRetentionPeriodInDays is not set");
         }
         try {
-            RegisterDomainRequest request = new RegisterDomainRequest().withName(domain).withWorkflowExecutionRetentionPeriodInDays(
-                    String.valueOf(domainRetentionPeriodInDays));
-            RequestTimeoutHelper.overrideControlPlaneRequestTimeout(request, clientConfig);
+            RegisterDomainRequest request = RegisterDomainRequest.builder().name(domain)
+                .workflowExecutionRetentionPeriodInDays(String.valueOf(domainRetentionPeriodInDays)).build();
+            request = RequestTimeoutHelper.overrideControlPlaneRequestTimeout(request, clientConfig);
             service.registerDomain(request);
-        }
-        catch (DomainAlreadyExistsException e) {
+        } catch (DomainAlreadyExistsException e) {
             if (log.isTraceEnabled()) {
                 log.trace("Domain is already registered: " + domain);
             }
@@ -358,7 +391,7 @@ public abstract class GenericWorker<T> implements WorkerBase {
             return;
         }
         if (!disableServiceShutdownOnStop) {
-            service.shutdown();
+            service.close();
         }
         pollingExecutor.shutdown();
         workerExecutor.shutdown();
@@ -376,7 +409,7 @@ public abstract class GenericWorker<T> implements WorkerBase {
             return;
         }
         if (!disableServiceShutdownOnStop) {
-            service.shutdown();
+            service.close();
         }
         pollingExecutor.shutdownNow();
         workerExecutor.shutdownNow();
@@ -399,7 +432,9 @@ public abstract class GenericWorker<T> implements WorkerBase {
     @Override
     public boolean gracefulShutdown(long timeout, TimeUnit unit) throws InterruptedException {
         setDisableServiceShutdownOnStop(true);
-        return shutdownAndAwaitTermination(timeout, unit);
+        final boolean outstandingTasksCompleted = shutdownAndAwaitTermination(timeout, unit);
+        ThreadLocalMetrics.getMetrics().recordCount(MetricName.OUTSTANDING_TASKS_DROPPED.getName(), !outstandingTasksCompleted);
+        return outstandingTasksCompleted;
     }
 
     /**
@@ -415,14 +450,15 @@ public abstract class GenericWorker<T> implements WorkerBase {
             }
 
             if (!disableServiceShutdownOnStop) {
-                service.shutdown();
+                service.close();
             }
+            poller.shutdown();
             pollingExecutor.shutdown();
-            pollingExecutor.awaitTermination(timeout, unit);
+            pollingExecutor.awaitTermination(timeoutMilliseconds, TimeUnit.MILLISECONDS);
             workerExecutor.shutdown();
             long elapsed = System.currentTimeMillis() - start;
             long left = timeoutMilliseconds - elapsed;
-            workerExecutor.awaitTermination(left, unit);
+            workerExecutor.awaitTermination(left, TimeUnit.MILLISECONDS);
         }
         long elapsed = System.currentTimeMillis() - start;
         long left = timeoutMilliseconds - elapsed;
@@ -503,14 +539,14 @@ public abstract class GenericWorker<T> implements WorkerBase {
     /**
      * By default when @{link {@link #shutdown()} or @{link
      * {@link #shutdownNow()} is called the worker calls
-     * {@link AmazonSimpleWorkflow#shutdown()} on the service instance it is
+     * {@link SwfClient#close()} on the service instance it is
      * configured with before shutting down internal thread pools. Otherwise
      * threads that are waiting on a poll request might block shutdown for the
      * duration of a poll. This flag allows disabling this behavior.
      *
      * @param disableServiceShutdownOnStop
      *            <code>true</code> means do not call
-     *            {@link AmazonSimpleWorkflow#shutdown()}
+     *            {@link SwfClient#close()}
      */
     @Override
     public void setDisableServiceShutdownOnStop(boolean disableServiceShutdownOnStop) {

@@ -14,14 +14,15 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowException;
 import com.amazonaws.services.simpleworkflow.flow.annotations.Asynchronous;
 import com.amazonaws.services.simpleworkflow.flow.annotations.Execute;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.core.Task;
 import com.amazonaws.services.simpleworkflow.flow.core.TryCatchFinally;
-import com.amazonaws.services.simpleworkflow.model.RespondDecisionTaskCompletedRequest;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.DescribeWorkflowExecutionRequest;
+import software.amazon.awssdk.services.swf.model.RespondDecisionTaskCompletedRequest;
 
 /**
  * Base class for all workflow definitions. Implementation should use
@@ -64,9 +65,9 @@ public abstract class WorkflowDefinition {
 
     /**
      * Return state that is inserted decision completion through
-     * {@link RespondDecisionTaskCompletedRequest#setExecutionContext(String)}
+     * {@link RespondDecisionTaskCompletedRequest.Builder#executionContext(String)}
      * and later can be retrieved through
-     * {@link AmazonSimpleWorkflow#describeWorkflowExecution(com.amazonaws.services.simpleworkflow.model.DescribeWorkflowExecutionRequest)}
+     * {@link SwfClient#describeWorkflowExecution(DescribeWorkflowExecutionRequest)}
      * visibility call.
      * 
      * Implementation of this call is expected to be synchronous and is not

@@ -41,11 +41,17 @@ public @interface Execute {
     /**
      * Optional name of the workflow type. When missing defaults to the
      * annotated method name. Maximum length is 256 characters.
+     *
+     * Don't set this name for a parent interface if you want to inherit its @Execute annotated method.
+     *
+     * @return workflow type name
      */
     String name() default "";
 
     /**
      * Required version of the workflow type. Maximum length is 64 characters.
+     *
+     * @return workflow type version
      */
     String version();
 

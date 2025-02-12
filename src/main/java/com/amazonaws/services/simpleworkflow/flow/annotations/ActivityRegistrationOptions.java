@@ -47,11 +47,15 @@ public @interface ActivityRegistrationOptions {
     /**
      * Default is {@link FlowConstants#NONE} which disables separate heartbeat
      * timeout.
+     *
+     * @return timeout in seconds, defaults to NONE
      */
     long defaultTaskHeartbeatTimeoutSeconds() default FlowConstants.NONE;
 
     /**
-     * Default is {@link FlowConstants#NONE}. 
+     * Default is {@link FlowConstants#NONE}.
+     *
+     * @return timeout in seconds, defaults to NONE
      */
     long defaultTaskScheduleToCloseTimeoutSeconds() default FlowConstants.NONE;
 
@@ -69,12 +73,16 @@ public @interface ActivityRegistrationOptions {
      * becomes required scheduling option (specified through
      * {@link ActivitySchedulingOptions#setTaskList(String)}) when an activity
      * is called.
+     *
+     * @return task list name
      */
     String defaultTaskList() default FlowConstants.USE_WORKER_TASK_LIST;
 
     /**
      * Default is {@link FlowConstants#DEFAULT_TASK_PRIORITY} if it
      * is not specified on activity invocation
+     *
+     * @return task priority, defaults to DEFAULT_TASK_PRIORITY
      */
     int defaultTaskPriority() default FlowConstants.DEFAULT_TASK_PRIORITY;
     

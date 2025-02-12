@@ -14,7 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.StartLambdaFunctionFailedCause;
+import software.amazon.awssdk.services.swf.model.StartLambdaFunctionFailedCause;
 
 public class StartLambdaFunctionFailedException extends LambdaFunctionException {
 

@@ -14,17 +14,19 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import java.util.concurrent.CancellationException;
-
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskStatus;
-import com.amazonaws.services.simpleworkflow.model.RecordActivityTaskHeartbeatRequest;
-import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCanceledRequest;
-import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCompletedRequest;
-import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskFailedRequest;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeUnit;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.RecordActivityTaskHeartbeatRequest;
+import software.amazon.awssdk.services.swf.model.RecordActivityTaskHeartbeatResponse;
+import software.amazon.awssdk.services.swf.model.RespondActivityTaskCanceledRequest;
+import software.amazon.awssdk.services.swf.model.RespondActivityTaskCompletedRequest;
+import software.amazon.awssdk.services.swf.model.RespondActivityTaskFailedRequest;
 
 /**
  * TODO: Add exponential retry to manual activity completion the same way it is
@@ -32,7 +34,7 @@ import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskFailedRequ
  */
 class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient {
 
-    private final AmazonSimpleWorkflow service;
+    private final SwfClient service;
 
     private final String taskToken;
 
@@ -40,11 +42,11 @@ class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient 
 
     private SimpleWorkflowClientConfig config;
 
-    public ManualActivityCompletionClientImpl(AmazonSimpleWorkflow service, String taskToken, DataConverter dataConverter) {
+    public ManualActivityCompletionClientImpl(SwfClient service, String taskToken, DataConverter dataConverter) {
         this(service, taskToken, dataConverter, null);
     }
 
-    public ManualActivityCompletionClientImpl(AmazonSimpleWorkflow service, String taskToken, DataConverter dataConverter, SimpleWorkflowClientConfig config) {
+    public ManualActivityCompletionClientImpl(SwfClient service, String taskToken, DataConverter dataConverter, SimpleWorkflowClientConfig config) {
         this.service = service;
         this.taskToken = taskToken;
         this.dataConverter = dataConverter;
@@ -53,48 +55,51 @@ class ManualActivityCompletionClientImpl extends ManualActivityCompletionClient 
 
     @Override
     public void complete(Object result) {
-        RespondActivityTaskCompletedRequest request = new RespondActivityTaskCompletedRequest();
-        String convertedResult = dataConverter.toData(result);
-        request.setResult(convertedResult);
-        request.setTaskToken(taskToken);
+        final String convertedResult = ThreadLocalMetrics.getMetrics().recordSupplier(
+            () -> dataConverter.toData(result),
+            dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+            TimeUnit.MILLISECONDS
+        );
 
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        RespondActivityTaskCompletedRequest request = RespondActivityTaskCompletedRequest.builder().taskToken(taskToken).result(convertedResult).build();
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.respondActivityTaskCompleted(request);
     }
 
     @Override
     public void fail(Throwable failure) {
-        RespondActivityTaskFailedRequest request = new RespondActivityTaskFailedRequest();
-        String convertedFailure = dataConverter.toData(failure);
-        request.setReason(WorkflowExecutionUtils.truncateReason(failure.getMessage()));
-        request.setDetails(convertedFailure);
-        request.setTaskToken(taskToken);
+        final String convertedFailure = ThreadLocalMetrics.getMetrics().recordSupplier(
+            () -> dataConverter.toData(failure),
+            dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+            TimeUnit.MILLISECONDS
+        );
+        RespondActivityTaskFailedRequest request
+            = RespondActivityTaskFailedRequest.builder().reason(WorkflowExecutionUtils.truncateReason(failure.getMessage()))
+            .details(convertedFailure).taskToken(taskToken).build();
 
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.respondActivityTaskFailed(request);
     }
 
     @Override
     public void recordHeartbeat(String details) throws CancellationException {
-        RecordActivityTaskHeartbeatRequest request = new RecordActivityTaskHeartbeatRequest();
-        request.setDetails(details);
-        request.setTaskToken(taskToken);
-        ActivityTaskStatus status;
+        RecordActivityTaskHeartbeatRequest request
+            = RecordActivityTaskHeartbeatRequest.builder().details(details).taskToken(taskToken).build();
+        RecordActivityTaskHeartbeatResponse status;
 
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         status = service.recordActivityTaskHeartbeat(request);
-        if (status.isCancelRequested()) {
+        if (status.cancelRequested()) {
             throw new CancellationException();
         }
     }
 
     @Override
     public void reportCancellation(String details) {
-        RespondActivityTaskCanceledRequest request = new RespondActivityTaskCanceledRequest();
-        request.setDetails(details);
-        request.setTaskToken(taskToken);
+        RespondActivityTaskCanceledRequest request
+            = RespondActivityTaskCanceledRequest.builder().details(details).taskToken(taskToken).build();
 
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
+        request = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(request, config);
         service.respondActivityTaskCanceled(request);
     }
 

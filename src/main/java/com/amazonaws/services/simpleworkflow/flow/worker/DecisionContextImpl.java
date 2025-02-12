@@ -19,50 +19,24 @@ import com.amazonaws.services.simpleworkflow.flow.WorkflowClock;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowContext;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericActivityClient;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClient;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 class DecisionContextImpl extends DecisionContext {
 
+    @Getter
     private final GenericActivityClient activityClient;
-    
+
+    @Getter
     private final GenericWorkflowClient workflowClient;
-    
+
+    @Getter
     private final WorkflowClock workflowClock;
-    
+
+    @Getter
     private final WorkflowContext workflowContext;
 
+    @Getter
     private final LambdaFunctionClient lambdaFunctionClient;
-
-    DecisionContextImpl(GenericActivityClient activityClient, GenericWorkflowClient workflowClient,
-            WorkflowClock workflowClock, WorkflowContext workflowContext, LambdaFunctionClient lambdaFunctionClient) {
-        this.activityClient = activityClient;
-        this.workflowClient = workflowClient;
-        this.workflowClock = workflowClock;
-        this.workflowContext = workflowContext;
-        this.lambdaFunctionClient = lambdaFunctionClient;
-    }
-
-    @Override
-    public GenericActivityClient getActivityClient() {
-       return activityClient;
-    }
-
-    @Override
-    public GenericWorkflowClient getWorkflowClient() {
-        return workflowClient;
-    }
-
-    @Override
-    public WorkflowClock getWorkflowClock() {
-        return workflowClock;
-    }
-
-    @Override
-    public WorkflowContext getWorkflowContext() {
-        return workflowContext;
-    }
-
-    @Override
-    public LambdaFunctionClient getLambdaFunctionClient() {
-    	return lambdaFunctionClient;
-    }
 }

@@ -19,14 +19,16 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.amazonaws.services.simpleworkflow.model.PredefinedDuration;
-
 /**
  * This class is for internal use only and may be changed or removed without
  * prior notice.
  * 
  */
 public final class FlowHelpers {
+
+    public enum PredefinedDuration {
+        NONE
+    }
 
     private static final Map<Class<?>, Object> defaultValues = new ConcurrentHashMap<Class<?>, Object>();
 
@@ -105,6 +107,10 @@ public final class FlowHelpers {
      * <p>
      * Used to support backward compatible changes in activities and workflow
      * APIs.
+     *
+     * @param types array of parameter types to be processed
+     * @param values array of parameter values to be processed, can be null
+     * @return an Object array containing the parameter values, padded with default values if necessary
      */
     public static Object[] getInputParameters(Class<?>[] types, Object[] values) {
 

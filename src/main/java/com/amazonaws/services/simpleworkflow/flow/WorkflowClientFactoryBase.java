@@ -15,7 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClient;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
 
 public abstract class WorkflowClientFactoryBase<T> implements WorkflowClientFactory<T> {
 
@@ -85,7 +85,7 @@ public abstract class WorkflowClientFactoryBase<T> implements WorkflowClientFact
     public T getClient() {
     	GenericWorkflowClient client = getGenericClientToUse();
         String workflowId = client.generateUniqueId();
-        WorkflowExecution execution = new WorkflowExecution().withWorkflowId(workflowId);
+        WorkflowExecution execution = WorkflowExecution.builder().workflowId(workflowId).build();
         return getClient(execution, startWorkflowOptions, dataConverter);
     }
 
@@ -94,7 +94,7 @@ public abstract class WorkflowClientFactoryBase<T> implements WorkflowClientFact
         if (workflowId == null || workflowId.isEmpty()) {
             throw new IllegalArgumentException("workflowId");
         }
-        WorkflowExecution execution = new WorkflowExecution().withWorkflowId(workflowId);
+        WorkflowExecution execution = WorkflowExecution.builder().workflowId(workflowId).build();
         return getClient(execution, startWorkflowOptions, dataConverter);
     }
 

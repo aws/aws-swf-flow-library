@@ -21,6 +21,7 @@ import java.util.Map.Entry;
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.junit.WorkflowTestBase;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 import com.amazonaws.services.simpleworkflow.flow.spring.WorkflowScope;
 import com.amazonaws.services.simpleworkflow.flow.test.TestDecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.test.TestLambdaFunctionClient;
@@ -28,7 +29,6 @@ import com.amazonaws.services.simpleworkflow.flow.test.TestPOJOActivityImplement
 import com.amazonaws.services.simpleworkflow.flow.test.TestPOJOActivityImplementationWorker;
 import com.amazonaws.services.simpleworkflow.flow.test.TestWorkflowClock;
 import com.amazonaws.services.simpleworkflow.flow.test.TestWorkflowContext;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
 
 /**
  * JUnit Rule that should be present as a public field of the test class

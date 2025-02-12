@@ -28,7 +28,8 @@ public interface DynamicClient {
   
     /**
      * Used to dynamically schedule an activity using its name
-     * 
+     *
+     * @param version - version of the activity to schedule
      * @param activity 
      *      name of activity to schedule
      * @param input
@@ -41,7 +42,8 @@ public interface DynamicClient {
 
     /**
      * Used to dynamically schedule an activity for execution
-     * 
+     *
+     * @param version - version of the activity to schedule
      * @param activity
      *      Name of activity
      * @param input
@@ -68,6 +70,7 @@ public interface DynamicClient {
      * 
      * @param activity
      *      Name of activity
+     * @param version - version of the activity to schedule
      * @param input
      *      A map of all input parameters to that activity
      * @param converter

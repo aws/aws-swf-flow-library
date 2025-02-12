@@ -14,11 +14,11 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.model.Decision;
-import com.amazonaws.services.simpleworkflow.model.DecisionType;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.RequestCancelActivityTaskDecisionAttributes;
-import com.amazonaws.services.simpleworkflow.model.ScheduleActivityTaskDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.Decision;
+import software.amazon.awssdk.services.swf.model.DecisionType;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.RequestCancelActivityTaskDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.ScheduleActivityTaskDecisionAttributes;
 
 class ActivityDecisionStateMachine extends DecisionStateMachineBase {
 
@@ -76,19 +76,15 @@ class ActivityDecisionStateMachine extends DecisionStateMachineBase {
     }
 
     private Decision createRequestCancelActivityTaskDecision() {
-        RequestCancelActivityTaskDecisionAttributes tryCancel = new RequestCancelActivityTaskDecisionAttributes();
-        tryCancel.setActivityId(scheduleAttributes.getActivityId());
-        Decision decision = new Decision();
-        decision.setRequestCancelActivityTaskDecisionAttributes(tryCancel);
-        decision.setDecisionType(DecisionType.RequestCancelActivityTask.toString());
-        return decision;
+        RequestCancelActivityTaskDecisionAttributes tryCancel = RequestCancelActivityTaskDecisionAttributes.builder()
+            .activityId(scheduleAttributes.activityId()).build();
+        return Decision.builder().requestCancelActivityTaskDecisionAttributes(tryCancel)
+            .decisionType(DecisionType.REQUEST_CANCEL_ACTIVITY_TASK).build();
     }
 
     private Decision createScheduleActivityTaskDecision() {
-        Decision decision = new Decision();
-        decision.setScheduleActivityTaskDecisionAttributes(scheduleAttributes);
-        decision.setDecisionType(DecisionType.ScheduleActivityTask.toString());
-        return decision;
+        return Decision.builder().scheduleActivityTaskDecisionAttributes(scheduleAttributes)
+            .decisionType(DecisionType.SCHEDULE_ACTIVITY_TASK).build();
     }
 
 }

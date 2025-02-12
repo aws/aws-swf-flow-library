@@ -36,9 +36,10 @@ public abstract class DataConverter {
 
     /**
      * Implements conversion of the single value.
-     * @param content
-     *            Simple Workflow Data value to convert to a Java object.
-     * @return converted Java object
+     * @param valueType - the Class object of the type to convert to
+     * @param <T> - the type to convert the data to
+     * @param content - Simple Workflow Data value to convert to a Java object.
+     * @return T - converted Java object
      * @throws DataConverterException
      *             if conversion of the data passed as parameter failed for any
      *             reason.

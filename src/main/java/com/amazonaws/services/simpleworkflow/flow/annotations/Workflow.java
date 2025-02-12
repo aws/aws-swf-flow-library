@@ -62,6 +62,8 @@ public @interface Workflow {
      * Default is {@link NullDataConverter} which means to use the default 
      * DataConverter used by framework.  Default DataConverter used by framework is 
      * {@link JsonDataConverter}.
+     *
+     * @return converter class to use
      */
     Class<? extends DataConverter> dataConverter() default NullDataConverter.class;
 

@@ -14,20 +14,20 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.pojo;
 
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map.Entry;
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.JsonDataConverter;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowTypeRegistrationOptions;
-import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeComponentImplementationVersion;
-import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeImplementationOptions;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinition;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactory;
+import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeComponentImplementationVersion;
+import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowTypeImplementationOptions;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 import com.amazonaws.services.simpleworkflow.flow.worker.CurrentDecisionContext;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 class POJOWorkflowDefinitionFactory extends WorkflowDefinitionFactory {
 

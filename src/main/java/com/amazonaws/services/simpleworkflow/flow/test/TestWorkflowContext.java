@@ -14,14 +14,13 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.test;
 
-import java.util.List;
-
 import com.amazonaws.services.simpleworkflow.flow.WorkflowContext;
 import com.amazonaws.services.simpleworkflow.flow.core.TryCatchFinally;
 import com.amazonaws.services.simpleworkflow.flow.generic.ContinueAsNewWorkflowExecutionParameters;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import java.util.List;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 
 public class TestWorkflowContext implements WorkflowContext {

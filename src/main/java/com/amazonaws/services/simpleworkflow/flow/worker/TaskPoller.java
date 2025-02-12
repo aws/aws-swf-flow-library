@@ -22,12 +22,14 @@ public interface TaskPoller<T>  {
     T poll() throws InterruptedException;
 
     void execute(T task) throws Exception;
-
+    
     void suspend();
 
     void resume();
 
     boolean isSuspended();
+
+    void shutdown();
 
     SuspendableSemaphore getPollingSemaphore();
 }

@@ -14,25 +14,46 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.common;
 
-import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 
+import java.net.SocketException;
+import java.time.Duration;
+import java.util.function.Predicate;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.swf.model.SwfRequest;
+
 public class RequestTimeoutHelper {
-    public static void overrideDataPlaneRequestTimeout(AmazonWebServiceRequest serviceRequest, SimpleWorkflowClientConfig config) {
-        if (serviceRequest != null && config != null) {
-            serviceRequest.setSdkRequestTimeout(config.getDataPlaneRequestTimeoutInMillis());
-        }
+
+    private static final SimpleWorkflowClientConfig DEFAULT_CLIENT_CONFIG = SimpleWorkflowClientConfig.ofDefaults();
+
+    public static final Predicate<SdkClientException> BROKEN_PIPE_ERROR_PREDICATE = ex -> ex.getCause() instanceof SocketException &&
+        ex.getCause().getMessage().contains("Broken pipe");
+
+    public static <T extends SwfRequest> T overrideDataPlaneRequestTimeout(T serviceRequest, SimpleWorkflowClientConfig config) {
+        return overrideApiCallTimeout(serviceRequest, config != null
+            ? config.getDataPlaneRequestTimeoutInMillis()
+            : DEFAULT_CLIENT_CONFIG.getDataPlaneRequestTimeoutInMillis());
     }
 
-    public static void overrideControlPlaneRequestTimeout(AmazonWebServiceRequest serviceRequest, SimpleWorkflowClientConfig config) {
-        if (serviceRequest != null && config != null) {
-            serviceRequest.setSdkRequestTimeout(config.getControlPlaneRequestTimeoutInMillis());
-        }
+    public static <T extends SwfRequest> T overrideControlPlaneRequestTimeout(T serviceRequest, SimpleWorkflowClientConfig config) {
+        return overrideApiCallTimeout(serviceRequest, config != null
+            ? config.getControlPlaneRequestTimeoutInMillis()
+            : DEFAULT_CLIENT_CONFIG.getControlPlaneRequestTimeoutInMillis());
     }
 
-    public static void overridePollRequestTimeout(AmazonWebServiceRequest serviceRequest, SimpleWorkflowClientConfig config) {
-        if (serviceRequest != null && config != null) {
-            serviceRequest.setSdkRequestTimeout(config.getPollingRequestTimeoutInMillis());
+    public static <T extends SwfRequest> T overridePollRequestTimeout(T serviceRequest, SimpleWorkflowClientConfig config) {
+        return overrideApiCallTimeout(serviceRequest, config != null
+            ? config.getPollingRequestTimeoutInMillis()
+            : DEFAULT_CLIENT_CONFIG.getPollingRequestTimeoutInMillis());
+    }
+
+    public static <T extends SwfRequest> T overrideApiCallTimeout(T serviceRequest, int requestCallTimeout) {
+        if (serviceRequest != null) {
+            AwsRequestOverrideConfiguration configuration = AwsRequestOverrideConfiguration.builder()
+                .apiCallAttemptTimeout(Duration.ofMillis(requestCallTimeout)).build();
+            return (T) serviceRequest.toBuilder().overrideConfiguration(configuration).build();
         }
+        return serviceRequest;
     }
 }

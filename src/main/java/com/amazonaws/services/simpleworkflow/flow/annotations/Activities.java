@@ -44,6 +44,8 @@ public @interface Activities {
      * Prefix to use for each activity defined within the interface annotated 
      * with @Activities annotation.  Default is empty string which means that 
      * name of interface should be used as the prefix for each activity name.
+     *
+     * @return prefix for activity names, empty string uses interface name
      */
     String activityNamePrefix() default "";
 
@@ -57,6 +59,8 @@ public @interface Activities {
      * AWS Flow Framework annotation processor will report an error if version 
      * for an activity is not specified through {@link Activities#version()} or 
      * {@link Activity#version()}.
+     *
+     * @return version string, empty to use per-method versions
      */
     String version() default "";
 
@@ -67,6 +71,8 @@ public @interface Activities {
      * Default is {@link NullDataConverter} which means to use the default 
      * DataConverter used by framework.  Default DataConverter used by framework is 
      * {@link JsonDataConverter}.
+     *
+     * @return converter class, NullDataConverter uses framework default converter
      */
     Class<? extends DataConverter> dataConverter() default NullDataConverter.class;
 }

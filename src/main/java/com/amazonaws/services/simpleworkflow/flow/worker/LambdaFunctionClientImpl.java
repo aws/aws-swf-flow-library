@@ -29,14 +29,14 @@ import com.amazonaws.services.simpleworkflow.flow.core.ExternalTaskCompletionHan
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.core.Settable;
 import com.amazonaws.services.simpleworkflow.flow.core.Task;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.LambdaFunctionCompletedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.LambdaFunctionFailedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.LambdaFunctionStartedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.LambdaFunctionTimedOutEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.ScheduleLambdaFunctionDecisionAttributes;
-import com.amazonaws.services.simpleworkflow.model.ScheduleLambdaFunctionFailedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.StartLambdaFunctionFailedEventAttributes;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.LambdaFunctionCompletedEventAttributes;
+import software.amazon.awssdk.services.swf.model.LambdaFunctionFailedEventAttributes;
+import software.amazon.awssdk.services.swf.model.LambdaFunctionStartedEventAttributes;
+import software.amazon.awssdk.services.swf.model.LambdaFunctionTimedOutEventAttributes;
+import software.amazon.awssdk.services.swf.model.ScheduleLambdaFunctionDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.ScheduleLambdaFunctionFailedEventAttributes;
+import software.amazon.awssdk.services.swf.model.StartLambdaFunctionFailedEventAttributes;
 
 public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 	private final class LambdaFunctionCancellationHandler implements
@@ -107,20 +107,19 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 
 		final OpenRequestInfo<String, String> context = new OpenRequestInfo<String, String>(
 				name);
-		final ScheduleLambdaFunctionDecisionAttributes attributes = new ScheduleLambdaFunctionDecisionAttributes();
-		attributes.setName(name);
-		attributes.setInput(input);
-		attributes.setId(functionId);
+		ScheduleLambdaFunctionDecisionAttributes.Builder attributesBuilder
+			= ScheduleLambdaFunctionDecisionAttributes.builder()
+			.name(name).input(input).id(functionId);
 		if (timeoutSeconds == 0) {
-			attributes
-					.setStartToCloseTimeout(FlowHelpers
-							.secondsToDuration(FlowConstants.DEFAULT_LAMBDA_FUNCTION_TIMEOUT));
+			attributesBuilder.startToCloseTimeout(FlowHelpers
+				.secondsToDuration(FlowConstants.DEFAULT_LAMBDA_FUNCTION_TIMEOUT));
 		} else {
-			attributes.setStartToCloseTimeout(FlowHelpers
-					.secondsToDuration(timeoutSeconds));
+			attributesBuilder.startToCloseTimeout(FlowHelpers
+				.secondsToDuration(timeoutSeconds));
 		}
-		String taskName = "functionId=" + attributes.getId() + ", timeouts="
-				+ attributes.getStartToCloseTimeout();
+		final ScheduleLambdaFunctionDecisionAttributes attributes = attributesBuilder.build();
+		String taskName = "functionId=" + attributes.id() + ", timeouts="
+				+ attributes.startToCloseTimeout();
 		new ExternalTask() {
 
 			@Override
@@ -142,12 +141,12 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 
 	void handleStartLambdaFunctionFailed(HistoryEvent event) {
 		StartLambdaFunctionFailedEventAttributes startLambdaFunctionFailedAttributes = event
-				.getStartLambdaFunctionFailedEventAttributes();
+				.startLambdaFunctionFailedEventAttributes();
 		String functionId = decisions.getFunctionId(startLambdaFunctionFailedAttributes);
 		OpenRequestInfo<String, String> scheduled = scheduledLambdas.remove(functionId);
 		if (decisions.handleStartLambdaFunctionFailed(event)) {
-			String cause = startLambdaFunctionFailedAttributes.getCause();
-			StartLambdaFunctionFailedException failure = new StartLambdaFunctionFailedException(event.getEventId(), 
+			String cause = startLambdaFunctionFailedAttributes.causeAsString();
+			StartLambdaFunctionFailedException failure = new StartLambdaFunctionFailedException(event.eventId(),
 			        scheduled.getUserContext(), functionId, cause);
 			ExternalTaskCompletionHandle completionHandle = scheduled.getCompletionHandle();
 			completionHandle.fail(failure);
@@ -156,14 +155,14 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 
 	void handleScheduleLambdaFunctionFailed(HistoryEvent event) {
 		ScheduleLambdaFunctionFailedEventAttributes attributes = event
-				.getScheduleLambdaFunctionFailedEventAttributes();
-		String functionId = attributes.getId();
+				.scheduleLambdaFunctionFailedEventAttributes();
+		String functionId = attributes.id();
 		OpenRequestInfo<String, String> scheduled = scheduledLambdas
 				.remove(functionId);
 		if (decisions.handleScheduleLambdaFunctionFailed(event)) {
-			String cause = attributes.getCause();
+			String cause = attributes.causeAsString();
 			ScheduleLambdaFunctionFailedException failure = new ScheduleLambdaFunctionFailedException(
-					event.getEventId(), attributes.getName(), functionId, cause);
+					event.eventId(), attributes.name(), functionId, cause);
 			ExternalTaskCompletionHandle completionHandle = scheduled
 					.getCompletionHandle();
 			completionHandle.fail(failure);
@@ -172,13 +171,13 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 
 	void handleLambdaFunctionCompleted(HistoryEvent event) {
 		LambdaFunctionCompletedEventAttributes attributes = event
-				.getLambdaFunctionCompletedEventAttributes();
+				.lambdaFunctionCompletedEventAttributes();
 		String lambdaId = decisions.getFunctionId(attributes);
 		if (decisions.handleLambdaFunctionClosed(lambdaId)) {
 			OpenRequestInfo<String, String> scheduled = scheduledLambdas
 					.remove(lambdaId);
 			if (scheduled != null) {
-				String result = attributes.getResult();
+				String result = attributes.result();
 				scheduled.getResult().set(result);
 				ExternalTaskCompletionHandle completionHandle = scheduled
 						.getCompletionHandle();
@@ -189,15 +188,15 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 
 	void handleLambdaFunctionFailed(HistoryEvent event) {
 		LambdaFunctionFailedEventAttributes attributes = event
-				.getLambdaFunctionFailedEventAttributes();
+				.lambdaFunctionFailedEventAttributes();
 		String functionId = decisions.getFunctionId(attributes);
 		if (decisions.handleLambdaFunctionClosed(functionId)) {
 			OpenRequestInfo<String, String> scheduled = scheduledLambdas
 					.remove(functionId);
 			if (scheduled != null) {
-				String detail = attributes.getDetails();
+				String detail = attributes.details();
 				LambdaFunctionFailedException failure = new LambdaFunctionFailedException(
-						event.getEventId(), scheduled.getUserContext(),
+						event.eventId(), scheduled.getUserContext(),
 						functionId, detail);
 				ExternalTaskCompletionHandle completionHandle = scheduled
 						.getCompletionHandle();
@@ -208,15 +207,15 @@ public class LambdaFunctionClientImpl implements LambdaFunctionClient {
 
 	void handleLambdaFunctionTimedOut(HistoryEvent event) {
 		LambdaFunctionTimedOutEventAttributes attributes = event
-				.getLambdaFunctionTimedOutEventAttributes();
+				.lambdaFunctionTimedOutEventAttributes();
 		String functionId = decisions.getFunctionId(attributes);
 		if (decisions.handleLambdaFunctionClosed(functionId)) {
 			OpenRequestInfo<String, String> scheduled = scheduledLambdas
 					.remove(functionId);
 			if (scheduled != null) {
-				String timeoutType = attributes.getTimeoutType();
+				String timeoutType = attributes.timeoutTypeAsString();
 				LambdaFunctionTimedOutException failure = new LambdaFunctionTimedOutException(
-						event.getEventId(), scheduled.getUserContext(),
+						event.eventId(), scheduled.getUserContext(),
 						functionId, timeoutType);
 				ExternalTaskCompletionHandle completionHandle = scheduled
 						.getCompletionHandle();

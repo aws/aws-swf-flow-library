@@ -14,14 +14,14 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import java.util.List;
-
 import com.amazonaws.services.simpleworkflow.flow.StartWorkflowOptions;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
+import java.util.List;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 
 public class ContinueAsNewWorkflowExecutionParameters {
+
     private String workflowTypeVersion;
     private long executionStartToCloseTimeoutSeconds = FlowConstants.USE_REGISTERED_DEFAULTS;
     private String input;
@@ -31,22 +31,22 @@ public class ContinueAsNewWorkflowExecutionParameters {
     private ChildPolicy childPolicy;
     private int taskPriority;
     private String lambdaRole;
-    
+
     public ContinueAsNewWorkflowExecutionParameters() {
     }
-    
+
     public String getWorkflowTypeVersion() {
         return workflowTypeVersion;
     }
-    
+
     public void setWorkflowTypeVersion(String workflowTypeVersion) {
         this.workflowTypeVersion = workflowTypeVersion;
     }
-    
+
     public ChildPolicy getChildPolicy() {
         return childPolicy;
     }
-    
+
     public void setChildPolicy(ChildPolicy childPolicy) {
         this.childPolicy = childPolicy;
     }
@@ -54,11 +54,11 @@ public class ContinueAsNewWorkflowExecutionParameters {
     public long getExecutionStartToCloseTimeoutSeconds() {
         return executionStartToCloseTimeoutSeconds;
     }
-    
+
     public void setExecutionStartToCloseTimeoutSeconds(long executionStartToCloseTimeoutSeconds) {
         this.executionStartToCloseTimeoutSeconds = executionStartToCloseTimeoutSeconds;
     }
-    
+
     public ContinueAsNewWorkflowExecutionParameters withExecutionStartToCloseTimeoutSeconds(long executionStartToCloseTimeoutSeconds) {
         this.executionStartToCloseTimeoutSeconds = executionStartToCloseTimeoutSeconds;
         return this;
@@ -71,20 +71,20 @@ public class ContinueAsNewWorkflowExecutionParameters {
     public void setInput(String input) {
         this.input = input;
     }
-    
+
     public ContinueAsNewWorkflowExecutionParameters withInput(String input) {
         this.input = input;
         return this;
-    } 
+    }
 
     public List<String> getTagList() {
         return tagList;
     }
-    
+
     public void setTagList(List<String> tagList) {
         this.tagList = tagList;
     }
-    
+
     public ContinueAsNewWorkflowExecutionParameters withTagList(List<String> tagList) {
         this.tagList = tagList;
         return this;
@@ -93,16 +93,16 @@ public class ContinueAsNewWorkflowExecutionParameters {
     public String getTaskList() {
         return taskList;
     }
-    
+
     public void setTaskList(String taskList) {
         this.taskList = taskList;
     }
-    
+
     public ContinueAsNewWorkflowExecutionParameters withTaskList(String taskList) {
         this.taskList = taskList;
         return this;
     }
-    
+
     public int getTaskPriority() {
         return taskPriority;
     }
@@ -119,11 +119,11 @@ public class ContinueAsNewWorkflowExecutionParameters {
     public long getTaskStartToCloseTimeoutSeconds() {
         return taskStartToCloseTimeoutSeconds;
     }
-    
+
     public void setTaskStartToCloseTimeoutSeconds(long taskStartToCloseTimeoutSeconds) {
         this.taskStartToCloseTimeoutSeconds = taskStartToCloseTimeoutSeconds;
     }
-    
+
     public ContinueAsNewWorkflowExecutionParameters withTaskStartToCloseTimeoutSeconds(long taskStartToCloseTimeoutSeconds) {
         this.taskStartToCloseTimeoutSeconds = taskStartToCloseTimeoutSeconds;
         return this;
@@ -142,36 +142,44 @@ public class ContinueAsNewWorkflowExecutionParameters {
         return this;
     }
 
-    public ContinueAsNewWorkflowExecutionParameters createContinueAsNewParametersFromOptions(StartWorkflowOptions options, 
-            StartWorkflowOptions optionsOverride) {
+    public ContinueAsNewWorkflowExecutionParameters createContinueAsNewParametersFromOptions(StartWorkflowOptions options,
+        StartWorkflowOptions optionsOverride) {
         ContinueAsNewWorkflowExecutionParameters continueAsNewWorkflowExecutionParameters = this.clone();
-        
+
+        updateContinueAsNewWorkflowExecutionParameters(options, continueAsNewWorkflowExecutionParameters);
+        updateContinueAsNewWorkflowExecutionParameters(optionsOverride, continueAsNewWorkflowExecutionParameters);
+
+        return continueAsNewWorkflowExecutionParameters;
+    }
+
+    private void updateContinueAsNewWorkflowExecutionParameters(StartWorkflowOptions options,
+        ContinueAsNewWorkflowExecutionParameters continueAsNewWorkflowExecutionParameters) {
         if (options != null) {
             Long executionStartToCloseTimeoutSeconds = options.getExecutionStartToCloseTimeoutSeconds();
             if (executionStartToCloseTimeoutSeconds != null) {
                 continueAsNewWorkflowExecutionParameters.setExecutionStartToCloseTimeoutSeconds(executionStartToCloseTimeoutSeconds);
             }
-            
+
             Long taskStartToCloseTimeoutSeconds = options.getTaskStartToCloseTimeoutSeconds();
             if (taskStartToCloseTimeoutSeconds != null) {
                 continueAsNewWorkflowExecutionParameters.setTaskStartToCloseTimeoutSeconds(taskStartToCloseTimeoutSeconds);
             }
-            
+
             List<String> tagList = options.getTagList();
             if (tagList != null) {
                 continueAsNewWorkflowExecutionParameters.setTagList(tagList);
             }
-            
+
             String taskList = options.getTaskList();
-            if (taskList != null && !taskList.isEmpty()) { 
+            if (taskList != null && !taskList.isEmpty()) {
                 continueAsNewWorkflowExecutionParameters.setTaskList(taskList);
             }
-            
+
             ChildPolicy childPolicy = options.getChildPolicy();
             if (childPolicy != null) {
                 continueAsNewWorkflowExecutionParameters.setChildPolicy(childPolicy);
             }
-            
+
             Integer taskPriority = options.getTaskPriority();
             if (taskPriority != null) {
                 continueAsNewWorkflowExecutionParameters.setTaskPriority(taskPriority);
@@ -181,48 +189,14 @@ public class ContinueAsNewWorkflowExecutionParameters {
             if (lambdaRole != null) {
                 continueAsNewWorkflowExecutionParameters.setLambdaRole(lambdaRole);
             }
-        }
-        
-        if (optionsOverride != null) {    
-            Long executionStartToCloseTimeoutSeconds = optionsOverride.getExecutionStartToCloseTimeoutSeconds();
-            if (executionStartToCloseTimeoutSeconds != null) {
-                continueAsNewWorkflowExecutionParameters.setExecutionStartToCloseTimeoutSeconds(executionStartToCloseTimeoutSeconds);
-            }
-            
-            Long taskStartToCloseTimeoutSeconds = optionsOverride.getTaskStartToCloseTimeoutSeconds();
-            if (taskStartToCloseTimeoutSeconds != null) {
-                continueAsNewWorkflowExecutionParameters.setTaskStartToCloseTimeoutSeconds(taskStartToCloseTimeoutSeconds);
-            }
-            
-            List<String> tagList = optionsOverride.getTagList();
-            if (tagList != null) {
-                continueAsNewWorkflowExecutionParameters.setTagList(tagList);
-            }
-            
-            String taskList = optionsOverride.getTaskList();
-            if (taskList != null && !taskList.isEmpty()) { 
-                continueAsNewWorkflowExecutionParameters.setTaskList(taskList);
-            }
-            
-            ChildPolicy childPolicy = optionsOverride.getChildPolicy();
-            if (childPolicy != null) {
-                continueAsNewWorkflowExecutionParameters.setChildPolicy(childPolicy);
-            }
-            
-            Integer taskPriority = optionsOverride.getTaskPriority();
-            if (taskPriority != null) {
-                continueAsNewWorkflowExecutionParameters.setTaskPriority(taskPriority);
-            }
 
-            String lambdaRole = optionsOverride.getLambdaRole();
-            if (lambdaRole != null) {
-                continueAsNewWorkflowExecutionParameters.setLambdaRole(lambdaRole);
+            String workflowTypeVersion = options.getWorkflowTypeVersion();
+            if (workflowTypeVersion != null && !workflowTypeVersion.trim().isEmpty()) {
+                continueAsNewWorkflowExecutionParameters.setWorkflowTypeVersion(workflowTypeVersion);
             }
         }
-        
-        return continueAsNewWorkflowExecutionParameters;
     }
-    
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -237,7 +211,7 @@ public class ContinueAsNewWorkflowExecutionParameters {
         sb.append("}");
         return sb.toString();
     }
-    
+
     public ContinueAsNewWorkflowExecutionParameters clone() {
         ContinueAsNewWorkflowExecutionParameters result = new ContinueAsNewWorkflowExecutionParameters();
         result.setWorkflowTypeVersion(workflowTypeVersion);

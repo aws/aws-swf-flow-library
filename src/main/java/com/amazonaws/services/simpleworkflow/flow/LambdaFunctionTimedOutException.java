@@ -14,7 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.LambdaFunctionTimeoutType;
+import software.amazon.awssdk.services.swf.model.LambdaFunctionTimeoutType;
 
 @SuppressWarnings("serial")
 public class LambdaFunctionTimedOutException extends LambdaFunctionException {

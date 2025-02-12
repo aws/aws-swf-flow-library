@@ -20,7 +20,7 @@ public interface GenericActivityClient {
 
     /**
      * Used to dynamically schedule an activity for execution
-     * 
+     *
      * @param parameters
      *            An object which encapsulates all the information required to
      *            schedule an activity for execution
@@ -30,9 +30,10 @@ public interface GenericActivityClient {
 
     /**
      * Used to dynamically schedule an activity for execution
-     * 
+     *
      * @param activity
      *            Name of activity
+     * @param version - version of the activity to schedule
      * @param input
      *            A map of all input parameters to that activity
      * @return Promise to a result returned by the activity
@@ -41,9 +42,10 @@ public interface GenericActivityClient {
 
     /**
      * Used to dynamically schedule an activity using its name
-     * 
+     *
      * @param activity
      *            name of activity to schedule
+     * @param version - version of the activity to schedule
      * @param input
      *            a Value containing a map of all input parameters to that
      *            activity

@@ -15,14 +15,17 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClientExternal;
 import com.amazonaws.services.simpleworkflow.flow.generic.SignalExternalWorkflowParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.StartWorkflowExecutionParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.TerminateWorkflowExecutionParameters;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 public class DynamicWorkflowClientExternalImpl implements DynamicWorkflowClientExternal {
 
@@ -37,7 +40,7 @@ public class DynamicWorkflowClientExternalImpl implements DynamicWorkflowClientE
     protected WorkflowType workflowType;
 
     public DynamicWorkflowClientExternalImpl(String workflowId, WorkflowType workflowType) {
-        this(new WorkflowExecution().withWorkflowId(workflowId), workflowType, null, null);
+        this(WorkflowExecution.builder().workflowId(workflowId).build(), workflowType, null, null);
     }
 
     public DynamicWorkflowClientExternalImpl(WorkflowExecution workflowExecution) {
@@ -45,7 +48,7 @@ public class DynamicWorkflowClientExternalImpl implements DynamicWorkflowClientE
     }
 
     public DynamicWorkflowClientExternalImpl(String workflowId, WorkflowType workflowType, StartWorkflowOptions options) {
-        this(new WorkflowExecution().withWorkflowId(workflowId), workflowType, options, null, null);
+        this(WorkflowExecution.builder().workflowId(workflowId).build(), workflowType, options, null, null);
     }
 
     public DynamicWorkflowClientExternalImpl(WorkflowExecution workflowExecution, WorkflowType workflowType,
@@ -141,19 +144,22 @@ public class DynamicWorkflowClientExternalImpl implements DynamicWorkflowClientE
         }
         if (workflowExecution == null) {
             throw new IllegalStateException("wokflowExecution is null");
-        }
-        else if (workflowExecution.getWorkflowId() == null) {
+        } else if (workflowExecution.getWorkflowId() == null) {
             throw new IllegalStateException("wokflowId is null");
         }
         StartWorkflowExecutionParameters parameters = new StartWorkflowExecutionParameters();
         parameters.setWorkflowType(workflowType);
         parameters.setWorkflowId(workflowExecution.getWorkflowId());
-        String input = dataConverter.toData(arguments);
+        final String input = ThreadLocalMetrics.getMetrics().recordSupplier(
+            () -> dataConverter.toData(arguments),
+            dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+            TimeUnit.MILLISECONDS
+        );
         parameters.setInput(input);
         parameters = parameters.createStartWorkflowExecutionParametersFromOptions(schedulingOptions, startOptionsOverride);
         WorkflowExecution newExecution = genericClient.startWorkflow(parameters);
         String runId = newExecution.getRunId();
-        workflowExecution.setRunId(runId);
+        workflowExecution = workflowExecution.toBuilder().runId(runId).build();
     }
 
     @Override
@@ -162,7 +168,11 @@ public class DynamicWorkflowClientExternalImpl implements DynamicWorkflowClientE
         signalParameters.setRunId(workflowExecution.getRunId());
         signalParameters.setWorkflowId(workflowExecution.getWorkflowId());
         signalParameters.setSignalName(signalName);
-        String input = dataConverter.toData(arguments);
+        final String input = ThreadLocalMetrics.getMetrics().recordSupplier(
+            () -> dataConverter.toData(arguments),
+            dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+            TimeUnit.MILLISECONDS
+        );
         signalParameters.setInput(input);
         genericClient.signalWorkflowExecution(signalParameters);
     }
@@ -174,7 +184,11 @@ public class DynamicWorkflowClientExternalImpl implements DynamicWorkflowClientE
             return null;
 
         try {
-            Throwable failure = dataConverter.fromData(state, Throwable.class);
+            final Throwable failure = ThreadLocalMetrics.getMetrics().recordSupplier(
+                () -> dataConverter.fromData(state, Throwable.class),
+                dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_DESERIALIZE.getName(),
+                TimeUnit.MILLISECONDS
+            );
             if (failure != null) {
                 throw failure;
             }
@@ -184,7 +198,11 @@ public class DynamicWorkflowClientExternalImpl implements DynamicWorkflowClientE
         catch (RuntimeException e) {
         }
 
-        return dataConverter.fromData(state, returnType);
+        return ThreadLocalMetrics.getMetrics().recordSupplier(
+            () -> dataConverter.fromData(state, returnType),
+            dataConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_DESERIALIZE.getName(),
+            TimeUnit.MILLISECONDS
+        );
     }
     
     @Override

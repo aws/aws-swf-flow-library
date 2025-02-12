@@ -14,15 +14,6 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.lang.Thread.UncaughtExceptionHandler;
-import java.lang.management.ManagementFactory;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowValueConstraint;
@@ -30,44 +21,64 @@ import com.amazonaws.services.simpleworkflow.flow.common.RequestTimeoutHelper;
 import com.amazonaws.services.simpleworkflow.flow.common.WorkflowExecutionUtils;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
+import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationFactory;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityTask;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricHelper;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.Metrics;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricsRegistry;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.NullMetricsRegistry;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
 import com.amazonaws.services.simpleworkflow.flow.retry.SynchronousRetrier;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
-import com.amazonaws.services.simpleworkflow.model.PollForActivityTaskRequest;
-import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCanceledRequest;
-import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskCompletedRequest;
-import com.amazonaws.services.simpleworkflow.model.RespondActivityTaskFailedRequest;
-import com.amazonaws.services.simpleworkflow.model.TaskList;
-import com.amazonaws.services.simpleworkflow.model.UnknownResourceException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.Thread.UncaughtExceptionHandler;
+import java.lang.management.ManagementFactory;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
-import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationFactory;
-import com.amazonaws.services.simpleworkflow.model.ActivityTask;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.PollForActivityTaskRequest;
+import software.amazon.awssdk.services.swf.model.RespondActivityTaskCanceledRequest;
+import software.amazon.awssdk.services.swf.model.RespondActivityTaskCompletedRequest;
+import software.amazon.awssdk.services.swf.model.RespondActivityTaskFailedRequest;
+import software.amazon.awssdk.services.swf.model.TaskList;
+import software.amazon.awssdk.services.swf.model.UnknownResourceException;
 
 /**
  * This class is for internal use only and may be changed or removed without prior notice.
- *
  */
 public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
 
     private static final Log log = LogFactory.getLog(ActivityTaskPoller.class);
 
-    private SuspendableSemaphore pollSemaphore;
-
-    private UncaughtExceptionHandler uncaughtExceptionHandler;
-
     private static final long SECOND = 1000;
 
-    private AmazonSimpleWorkflow service;
+    @Getter
+    @Setter
+    private SwfClient service;
 
+    @Getter
+    @Setter
     private String domain;
 
+    @Getter
     private String taskListToPoll;
 
+    @Getter
+    @Setter
     private ActivityImplementationFactory activityImplementationFactory;
 
+    @Getter
+    @Setter
     private String identity;
 
     private boolean initialized;
@@ -78,85 +89,46 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
 
     private final Condition suspentionCondition = lock.newCondition();
 
+    @Getter
     private SimpleWorkflowClientConfig config;
 
-    public ActivityTaskPoller() {
+    @Getter
+    @Setter
+    private UncaughtExceptionHandler uncaughtExceptionHandler;
+
+    @Getter
+    @Setter
+    private MetricsRegistry metricsRegistry;
+
+    @Getter
+    private SuspendableSemaphore pollingSemaphore;
+
+    ActivityTaskPoller() {
         identity = ManagementFactory.getRuntimeMXBean().getName();
         int length = Math.min(identity.length(), GenericWorker.MAX_IDENTITY_LENGTH);
         identity = identity.substring(0, length);
+        metricsRegistry = new NullMetricsRegistry();
     }
 
-    public ActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String pollTaskList,
-                              ActivityImplementationFactory activityImplementationFactory) {
+    public ActivityTaskPoller(SwfClient service, String domain, String pollTaskList,
+            ActivityImplementationFactory activityImplementationFactory) {
         this(service, domain, pollTaskList, activityImplementationFactory, null);
     }
 
-    public ActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String pollTaskList,
+    public ActivityTaskPoller(SwfClient service, String domain, String pollTaskList,
                               ActivityImplementationFactory activityImplementationFactory, SimpleWorkflowClientConfig config) {
+        this(service, domain, pollTaskList, activityImplementationFactory, GenericWorker.DEFAULT_EXECUTOR_THREAD_COUNT, config);
+    }
+
+    public ActivityTaskPoller(SwfClient service, String domain, String pollTaskList,
+                              ActivityImplementationFactory activityImplementationFactory, int executeThreadCount, SimpleWorkflowClientConfig config) {
         this();
         this.service = service;
         this.domain = domain;
         this.taskListToPoll = pollTaskList;
         this.activityImplementationFactory = activityImplementationFactory;
         this.config = config;
-    }
-
-    public ActivityTaskPoller(AmazonSimpleWorkflow service, String domain, String pollTaskList,
-                              ActivityImplementationFactory activityImplementationFactory, int executeThreadCount, SimpleWorkflowClientConfig config) {
-        this(service, domain, pollTaskList, activityImplementationFactory, config);
-        pollSemaphore = new SuspendableSemaphore(executeThreadCount);
-    }
-
-    public AmazonSimpleWorkflow getService() {
-        return service;
-    }
-
-    public void setService(AmazonSimpleWorkflow service) {
-        this.service = service;
-    }
-
-    public String getDomain() {
-        return domain;
-    }
-
-    public void setDomain(String domain) {
-        this.domain = domain;
-    }
-
-    public String getPollTaskList() {
-        return taskListToPoll;
-    }
-
-    public void setTaskListToPoll(String taskList) {
-        this.taskListToPoll = taskList;
-    }
-
-    public ActivityImplementationFactory getActivityImplementationFactory() {
-        return activityImplementationFactory;
-    }
-
-    public void setActivityImplementationFactory(ActivityImplementationFactory activityImplementationFactory) {
-        this.activityImplementationFactory = activityImplementationFactory;
-    }
-
-    public String getIdentity() {
-        return identity;
-    }
-
-    public void setIdentity(String identity) {
-        this.identity = identity;
-    }
-
-    public String getTaskListToPoll() {
-        return taskListToPoll;
-    }
-
-    public UncaughtExceptionHandler getUncaughtExceptionHandler() {
-        return uncaughtExceptionHandler;
-    }
-
-    public void setUncaughtExceptionHandler(UncaughtExceptionHandler uncaughtExceptionHandler) {
-        this.uncaughtExceptionHandler = uncaughtExceptionHandler;
+        pollingSemaphore = new SuspendableSemaphore(executeThreadCount);
     }
 
     private Exception wrapFailure(final ActivityTask task, Throwable failure) {
@@ -178,25 +150,33 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
             initialized = true;
         }
 
-        PollForActivityTaskRequest pollRequest = new PollForActivityTaskRequest();
-        pollRequest.setDomain(domain);
-        pollRequest.setIdentity(identity);
-        pollRequest.setTaskList(new TaskList().withName(taskListToPoll));
+        final Metrics metrics = metricsRegistry.newMetrics(MetricName.Operation.ACTIVITY_TASK_POLL.getName());
+        metrics.addProperty(MetricName.Property.TASK_LIST.getName(), taskListToPoll);
+        metrics.addProperty(MetricName.Property.DOMAIN.getName(), domain);
+        PollForActivityTaskRequest pollRequest = PollForActivityTaskRequest.builder()
+            .domain(domain)
+            .identity(identity)
+            .taskList(TaskList.builder().name(taskListToPoll).build())
+            .build();
 
         if (log.isDebugEnabled()) {
             log.debug("poll request begin: " + pollRequest);
         }
 
-        RequestTimeoutHelper.overridePollRequestTimeout(pollRequest, config);
-        ActivityTask result = service.pollForActivityTask(pollRequest);
-        if (result == null || result.getTaskToken() == null) {
-            if (log.isDebugEnabled()) {
-                log.debug("poll request returned no task");
+        pollRequest = RequestTimeoutHelper.overridePollRequestTimeout(pollRequest, config);
+        ActivityTask result;
+        try {
+            PollForActivityTaskRequest finalPollRequest = pollRequest;
+            result = ActivityTask.fromSdkType(metrics.recordSupplier(() -> service.pollForActivityTask(finalPollRequest),
+                MetricName.Operation.POLL_FOR_ACTIVITY_TASK.getName(), TimeUnit.MILLISECONDS));
+            if (result == null || result.getTaskToken() == null) {
+                result = null;
+            } else {
+                MetricHelper.recordMetrics(result, metrics);
             }
-            return null;
-        }
-        if (log.isTraceEnabled()) {
-            log.trace("poll request returned " + result);
+            metrics.recordCount(MetricName.EMPTY_POLL_COUNT.getName(), result == null, MetricName.getOperationDimension(MetricName.Operation.POLL_FOR_ACTIVITY_TASK.getName()));
+        } finally {
+            metrics.close();
         }
         return result;
     }
@@ -205,66 +185,89 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
     public void execute(ActivityTask task) throws Exception {
         String output = null;
         ActivityType activityType = task.getActivityType();
+        final Metrics metrics = metricsRegistry.newMetrics(MetricName.Operation.EXECUTE_ACTIVITY_TASK.getName());
+        MetricHelper.recordMetrics(task, metrics);
+        final Metrics childMetrics = metrics.newMetrics();
+        boolean activityResultSubmitted = false;
 
-        ActivityExecutionContext context = new ActivityExecutionContextImpl(service, domain, task, config);
+        ActivityExecutionContext context = new ActivityExecutionContextImpl(service, domain, task, config, metricsRegistry);
 
         ActivityTypeExecutionOptions executionOptions = null;
         try {
-            ActivityImplementation activityImplementation = activityImplementationFactory.getActivityImplementation(activityType);
-            if (activityImplementation == null) {
-                Iterable<ActivityType> typesToRegister = activityImplementationFactory.getActivityTypesToRegister();
-                StringBuilder types = new StringBuilder();
-                types.append("[");
-                for (ActivityType t : typesToRegister) {
-                    if (types.length() > 1) {
-                        types.append(", ");
+            try {
+                ActivityImplementation activityImplementation = activityImplementationFactory.getActivityImplementation(activityType);
+                if (activityImplementation == null) {
+                    metrics.recordCount(MetricName.TYPE_NOT_FOUND.getName(), 1, MetricName.getActivityTypeDimension(activityType));
+                    Iterable<ActivityType> typesToRegister = activityImplementationFactory.getActivityTypesToRegister();
+                    StringBuilder types = new StringBuilder();
+                    types.append("[");
+                    for (ActivityType t : typesToRegister) {
+                        if (types.length() > 1) {
+                            types.append(", ");
+                        }
+                        types.append(t);
                     }
-                    types.append(t);
-                }
-                types.append("]");
-                throw new ActivityFailureException("Activity type \"" + activityType
+                    types.append("]");
+                    throw new ActivityFailureException("Activity type \"" + activityType
                         + "\" is not supported by the ActivityWorker. "
                         + "Possible cause is activity type version change without changing task list name. "
-                        + "Activity types registered with the worker are: " + types.toString());
-            }
-            executionOptions = activityImplementation.getExecutionOptions();
-            output = activityImplementation.execute(context);
-        }
-        catch (CancellationException e) {
-            respondActivityTaskCanceledWithRetry(task.getTaskToken(), null, executionOptions);
-            return;
-        }
-        catch (ActivityFailureException e) {
-            if (log.isErrorEnabled()) {
-                log.error("Failure processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
+                        + "Activity types registered with the worker are: " + types);
+                }
+                ThreadLocalMetrics.setCurrent(childMetrics);
+                executionOptions = activityImplementation.getExecutionOptions();
+                output = childMetrics.recordCallable(() -> activityImplementation.execute(context), activityType.getName(),
+                    TimeUnit.MILLISECONDS);
+
+            } catch (CancellationException e) {
+                respondActivityTaskCanceledWithRetry(task.getTaskToken(), null, executionOptions);
+                activityResultSubmitted = true;
+                return;
+
+            } catch (ActivityFailureException e) {
+                if (log.isErrorEnabled()) {
+                    log.error("Failure processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
                         + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType + ", activityInstanceId="
                         + task.getActivityId(), e);
-            }
-            respondActivityTaskFailedWithRetry(task.getTaskToken(), e.getReason(), e.getDetails(), executionOptions);
-            return;
-        }
-        catch (Exception e) {
-            if (log.isErrorEnabled()) {
-                log.error("Failure processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
+                }
+                respondActivityTaskFailedWithRetry(task.getTaskToken(), e.getReason(), e.getDetails(), executionOptions);
+                activityResultSubmitted = true;
+                return;
+
+            } catch (Exception e) {
+                if (log.isErrorEnabled()) {
+                    log.error("Failure processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
                         + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType + ", activityInstanceId="
                         + task.getActivityId(), e);
-            }
-            String reason = e.getMessage();
-            StringWriter sw = new StringWriter();
-            e.printStackTrace(new PrintWriter(sw));
-            String details = sw.toString();
-            if (details.length() > FlowValueConstraint.FAILURE_DETAILS.getMaxSize()) {
-                log.warn("Length of details is over maximum input length of 32768. Actual details: " + details +
-                        "when processing activity task with taskId=" + task.getStartedEventId() + ", workflowGenerationId="
+                }
+                String reason = e.getMessage();
+                StringWriter sw = new StringWriter();
+                e.printStackTrace(new PrintWriter(sw));
+                String details = sw.toString();
+
+                if (details.length() > FlowValueConstraint.FAILURE_DETAILS.getMaxSize()) {
+                    metrics.recordCount(MetricName.RESPONSE_TRUNCATED.getName(), 1, MetricName.getActivityTypeDimension(activityType));
+                    log.warn("Length of details is over maximum input length of 32768. Actual details: " + details +
+                        "when processing activity task with taskId=" + task.getStartedEventId() + ", workflowId="
                         + task.getWorkflowExecution().getWorkflowId() + ", activity=" + activityType + ", activityInstanceId="
                         + task.getActivityId());
-                details = WorkflowExecutionUtils.truncateDetails(details);
+                    details = WorkflowExecutionUtils.truncateDetails(details);
+                }
+                respondActivityTaskFailedWithRetry(task.getTaskToken(), reason, details, executionOptions);
+                activityResultSubmitted = true;
+                return;
+            } finally {
+                childMetrics.close();
+                ThreadLocalMetrics.setCurrent(metrics);
             }
-            respondActivityTaskFailedWithRetry(task.getTaskToken(), reason, details, executionOptions);
-            return;
-        }
-        if (executionOptions == null || !executionOptions.isManualActivityCompletion()) {
-            respondActivityTaskCompletedWithRetry(task.getTaskToken(), output, executionOptions);
+
+            if (executionOptions == null || !executionOptions.isManualActivityCompletion()) {
+                respondActivityTaskCompletedWithRetry(task.getTaskToken(), output, executionOptions);
+                activityResultSubmitted = true;
+            }
+        } finally {
+            metrics.recordCount(MetricName.DROPPED_TASK.getName(), !activityResultSubmitted, MetricName.getActivityTypeDimension(activityType));
+            metrics.close();
+            ThreadLocalMetrics.clearCurrent();
         }
     }
 
@@ -315,8 +318,7 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
     }
 
     @Override
-    public SuspendableSemaphore getPollingSemaphore() {
-        return pollSemaphore;
+    public void shutdown() {
     }
 
     protected void checkRequiredProperty(Object value, String name) {
@@ -326,12 +328,13 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
     }
 
     protected void respondActivityTaskFailed(String taskToken, String reason, String details) {
-        RespondActivityTaskFailedRequest failedResponse = new RespondActivityTaskFailedRequest();
-        failedResponse.setTaskToken(taskToken);
-        failedResponse.setReason(WorkflowExecutionUtils.truncateReason(reason));
-        failedResponse.setDetails(details);
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(failedResponse, config);
-        service.respondActivityTaskFailed(failedResponse);
+        RespondActivityTaskFailedRequest failedResponse = RespondActivityTaskFailedRequest.builder().taskToken(taskToken)
+            .reason(WorkflowExecutionUtils.truncateReason(reason)).details(details).build();
+
+        failedResponse = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(failedResponse, config);
+        RespondActivityTaskFailedRequest finalFailedResponse = failedResponse;
+        ThreadLocalMetrics.getMetrics().recordRunnable(() -> service.respondActivityTaskFailed(finalFailedResponse),
+            MetricName.Operation.RESPOND_ACTIVITY_TASK_FAILED.getName(), TimeUnit.MILLISECONDS);
     }
 
     protected void respondActivityTaskCanceledWithRetry(final String taskToken, final String details,
@@ -342,13 +345,7 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
             retrier = createRetrier(completionRetryOptions);
         }
         if (retrier != null) {
-            retrier.retry(new Runnable() {
-
-                @Override
-                public void run() {
-                    respondActivityTaskCanceled(taskToken, details);
-                }
-            });
+            retrier.retry(() -> respondActivityTaskCanceled(taskToken, details));
         }
         else {
             respondActivityTaskCanceled(taskToken, details);
@@ -366,16 +363,17 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
         retryParameters.setMaximumRetries(activityTypeCompletionRetryOptions.getMaximumAttempts() - 1);
         retryParameters.setMaximumRetryInterval(activityTypeCompletionRetryOptions.getMaximumRetryIntervalSeconds() * SECOND);
         retryParameters.setMinimumRetries(activityTypeCompletionRetryOptions.getMinimumAttempts() - 1);
-        SynchronousRetrier retrier = new SynchronousRetrier(retryParameters, UnknownResourceException.class);
-        return retrier;
+        return new SynchronousRetrier(retryParameters, UnknownResourceException.class);
     }
 
     protected void respondActivityTaskCanceled(String taskToken, String details) {
-        RespondActivityTaskCanceledRequest canceledResponse = new RespondActivityTaskCanceledRequest();
-        canceledResponse.setTaskToken(taskToken);
-        canceledResponse.setDetails(details);
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(canceledResponse, config);
-        service.respondActivityTaskCanceled(canceledResponse);
+        RespondActivityTaskCanceledRequest canceledResponse = RespondActivityTaskCanceledRequest.builder().taskToken(taskToken)
+            .details(details).build();
+
+        RespondActivityTaskCanceledRequest finalCanceledResponse = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(canceledResponse,
+            config);
+        ThreadLocalMetrics.getMetrics().recordRunnable(() -> service.respondActivityTaskCanceled(finalCanceledResponse),
+            MetricName.Operation.RESPOND_ACTIVITY_TASK_CANCELED.getName(), TimeUnit.MILLISECONDS);
     }
 
     protected void respondActivityTaskCompletedWithRetry(final String taskToken, final String output,
@@ -386,13 +384,7 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
         }
         if (retrier != null) {
 
-            retrier.retry(new Runnable() {
-
-                @Override
-                public void run() {
-                    respondActivityTaskCompleted(taskToken, output);
-                }
-            });
+            retrier.retry(() -> respondActivityTaskCompleted(taskToken, output));
         }
         else {
             respondActivityTaskCompleted(taskToken, output);
@@ -400,11 +392,13 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
     }
 
     protected void respondActivityTaskCompleted(String taskToken, String output) {
-        RespondActivityTaskCompletedRequest completedResponse = new RespondActivityTaskCompletedRequest();
-        completedResponse.setTaskToken(taskToken);
-        completedResponse.setResult(output);
-        RequestTimeoutHelper.overrideDataPlaneRequestTimeout(completedResponse, config);
-        service.respondActivityTaskCompleted(completedResponse);
+        RespondActivityTaskCompletedRequest completedResponse = RespondActivityTaskCompletedRequest.builder().taskToken(taskToken)
+            .result(output).build();
+
+        RespondActivityTaskCompletedRequest finalCompletedResponse = RequestTimeoutHelper.overrideDataPlaneRequestTimeout(completedResponse,
+            config);
+        ThreadLocalMetrics.getMetrics().recordRunnable(() -> service.respondActivityTaskCompleted(finalCompletedResponse),
+            MetricName.Operation.RESPOND_ACTIVITY_TASK_COMPLETED.getName(), TimeUnit.MILLISECONDS);
     }
 
     protected void respondActivityTaskFailedWithRetry(final String taskToken, final String reason, final String details,
@@ -414,12 +408,7 @@ public class ActivityTaskPoller implements TaskPoller<ActivityTask> {
             retrier = createRetrier(executionOptions.getFailureRetryOptions());
         }
         if (retrier != null) {
-            retrier.retry(new Runnable() {
-                @Override
-                public void run() {
-                    respondActivityTaskFailed(taskToken, reason, details);
-                }
-            });
+            retrier.retry(() -> respondActivityTaskFailed(taskToken, reason, details));
         }
         else {
             respondActivityTaskFailed(taskToken, reason, details);
