@@ -38,21 +38,11 @@
   </properties>
 
   <dependencies>
-    <!-- Decider Affinity dependency -->
+    <!-- Decider Affinity Cache dependency -->
     <dependency>
       <groupId>javax.cache</groupId>
       <artifactId>cache-api</artifactId>
       <version>1.1.1</version>
-    </dependency>
-    <dependency>
-      <groupId>com.github.ben-manes.caffeine</groupId>
-      <artifactId>caffeine</artifactId>
-      <version>2.9.3</version>
-    </dependency>
-    <dependency>
-      <groupId>com.github.ben-manes.caffeine</groupId>
-      <artifactId>jcache</artifactId>
-      <version>2.9.3</version>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
