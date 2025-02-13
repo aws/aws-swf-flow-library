@@ -14,15 +14,14 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import java.util.concurrent.CancellationException;
-
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
-import com.amazonaws.services.simpleworkflow.flow.annotations.ManualActivityCompletion;
 import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
-import com.amazonaws.services.simpleworkflow.model.ActivityTask;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityTask;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import java.util.concurrent.CancellationException;
+import lombok.Getter;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.swf.SwfClient;
 
 /**
  * Context object passed to an activity implementation.
@@ -33,33 +32,31 @@ import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
  */
 public abstract class ActivityExecutionContext {
 
-    /**
-     * @return task token that is required to report task completion when
-     *         {@link ManualActivityCompletion} is used.
-     */
-    public abstract String getTaskToken();
+    @Getter
+    private final ActivityTask task;
+
+    protected ActivityExecutionContext(ActivityTask task) {
+        this.task = task;
+    }
 
     /**
      * @return workfow execution that requested the activity execution
      */
-    public abstract WorkflowExecution getWorkflowExecution();
-
-    /**
-     * @return task that caused activity execution
-     */
-    public abstract ActivityTask getTask();
+    public WorkflowExecution getWorkflowExecution() {
+        return task.getWorkflowExecution();
+    }
 
     /**
      * Use to notify Simple Workflow that activity execution is alive.
-     * 
+     *
      * @param details
      *            In case of activity timeout details are returned as a field of
      *            the exception thrown.
-     * @throws AmazonClientException
+     * @throws SdkException
      *             If any internal errors are encountered inside the client
      *             while attempting to make the request or handle the response.
      *             For example if a network connection is not available.
-     * @throws AmazonServiceException
+     * @throws AwsServiceException
      *             If an error response is returned by AmazonSimpleWorkflow
      *             indicating either a problem with the data in the request.
      *             Internal service errors are swallowed and not propagated to
@@ -70,14 +67,14 @@ public abstract class ActivityExecutionContext {
      *             indicate successful cancellation.
      */
     public abstract void recordActivityHeartbeat(String details)
-            throws AmazonServiceException, AmazonClientException, CancellationException;
+            throws AwsServiceException, SdkException, CancellationException;
 
     /**
      * @return an instance of the Simple Workflow Java client that is the same
      *         used by the invoked activity worker.
      */
-    public abstract AmazonSimpleWorkflow getService();
-    
+    public abstract SwfClient getService();
+
     public String getDomain() {
         // Throwing implementation is provided to not break existing subclasses
         throw new UnsupportedOperationException();

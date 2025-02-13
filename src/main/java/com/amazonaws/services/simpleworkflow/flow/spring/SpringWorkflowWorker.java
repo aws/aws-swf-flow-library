@@ -15,19 +15,22 @@
 package com.amazonaws.services.simpleworkflow.flow.spring;
 
 import com.amazonaws.services.simpleworkflow.flow.ChildWorkflowIdHandler;
+import com.amazonaws.services.simpleworkflow.flow.DataConverter;
+import com.amazonaws.services.simpleworkflow.flow.WorkerBase;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.Metrics;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricsRegistry;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.worker.GenericWorkflowWorker;
+import org.springframework.context.SmartLifecycle;
+
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-
-import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
-import org.springframework.context.SmartLifecycle;
-
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
-import com.amazonaws.services.simpleworkflow.flow.DataConverter;
-import com.amazonaws.services.simpleworkflow.flow.WorkerBase;
-import com.amazonaws.services.simpleworkflow.flow.worker.GenericWorkflowWorker;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import software.amazon.awssdk.services.swf.SwfClient;
 
 /**
  * To be used with Spring. Assumes that injected implementation bean has
@@ -51,18 +54,18 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
         this(new GenericWorkflowWorker());
     }
 
-    public SpringWorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll) {
+    public SpringWorkflowWorker(SwfClient service, String domain, String taskListToPoll) {
         this(new GenericWorkflowWorker(service, domain, taskListToPoll));
     }
 
-    public SpringWorkflowWorker(AmazonSimpleWorkflow service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
+    public SpringWorkflowWorker(SwfClient service, String domain, String taskListToPoll, SimpleWorkflowClientConfig config) {
         this(new GenericWorkflowWorker(service, domain, taskListToPoll, config));
     }
 
     public SpringWorkflowWorker(GenericWorkflowWorker genericWorker) {
         Objects.requireNonNull(genericWorker,"the workflow worker is required");
         this.genericWorker = genericWorker;
-        this.factoryFactory  = new SpringWorkflowDefinitionFactoryFactory();
+        this.factoryFactory = new SpringWorkflowDefinitionFactoryFactory();
         this.genericWorker.setWorkflowDefinitionFactoryFactory(factoryFactory);
     }
 
@@ -70,11 +73,11 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
         return genericWorker.getClientConfig();
     }
 
-    public AmazonSimpleWorkflow getService() {
+    public SwfClient getService() {
         return genericWorker.getService();
     }
 
-    public void setService(AmazonSimpleWorkflow service) {
+    public void setService(SwfClient service) {
         genericWorker.setService(service);
     }
 
@@ -158,7 +161,7 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
     }
 
     @Override
-    public void setIdentity(String identity) {
+   public void setIdentity(String identity) {
         genericWorker.setIdentity(identity);
     }
 
@@ -195,6 +198,16 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
     @Override
     public boolean isAllowCoreThreadTimeOut() {
         return genericWorker.isAllowCoreThreadTimeOut();
+    }
+
+    @Override
+    public MetricsRegistry getMetricsRegistry() {
+        return genericWorker.getMetricsRegistry();
+    }
+
+    @Override
+    public void setMetricsRegistry(MetricsRegistry factory) {
+        genericWorker.setMetricsRegistry(factory);
     }
 
     @Override
@@ -339,11 +352,14 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
 
     @Override
     public void stop() {
-        try {
+        final Metrics oldMetrics = ThreadLocalMetrics.getMetrics();
+        try (Metrics metrics = getMetricsRegistry().newMetrics(MetricName.Operation.WORKFLOW_WORKER_SHUTDOWN.getName())) {
+            ThreadLocalMetrics.setCurrent(metrics);
             gracefulShutdown(terminationTimeoutSeconds, TimeUnit.SECONDS);
             shutdownNow();
-        }
-        catch (InterruptedException e) {
+        } catch (InterruptedException e) {
+        } finally {
+            ThreadLocalMetrics.setCurrent(oldMetrics);
         }
     }
 
@@ -395,5 +411,4 @@ public class SpringWorkflowWorker implements WorkerBase, SmartLifecycle {
     public void registerTypesToPoll() {
         genericWorker.registerTypesToPoll();
     }
-
 }

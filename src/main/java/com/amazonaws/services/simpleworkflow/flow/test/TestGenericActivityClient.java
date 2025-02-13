@@ -14,12 +14,6 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.test;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.ActivityExecutionContext;
 import com.amazonaws.services.simpleworkflow.flow.ActivityFailureException;
 import com.amazonaws.services.simpleworkflow.flow.ActivityTaskFailedException;
@@ -29,46 +23,44 @@ import com.amazonaws.services.simpleworkflow.flow.DecisionContextProvider;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContextProviderImpl;
 import com.amazonaws.services.simpleworkflow.flow.ScheduleActivityTaskFailedException;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
-import com.amazonaws.services.simpleworkflow.flow.core.*;
-import com.amazonaws.services.simpleworkflow.flow.generic.*;
+import com.amazonaws.services.simpleworkflow.flow.core.Promise;
+import com.amazonaws.services.simpleworkflow.flow.core.Settable;
+import com.amazonaws.services.simpleworkflow.flow.core.Task;
+import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementation;
+import com.amazonaws.services.simpleworkflow.flow.generic.ActivityImplementationFactory;
+import com.amazonaws.services.simpleworkflow.flow.generic.ExecuteActivityParameters;
+import com.amazonaws.services.simpleworkflow.flow.generic.GenericActivityClient;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityTask;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
 import com.amazonaws.services.simpleworkflow.flow.worker.ActivityTypeRegistrationOptions;
-import com.amazonaws.services.simpleworkflow.model.ActivityTask;
-import com.amazonaws.services.simpleworkflow.model.ActivityTaskTimeoutType;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
-import com.amazonaws.services.simpleworkflow.model.ScheduleActivityTaskFailedCause;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import java.util.HashMap;
+import java.util.Map;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.swf.SwfClient;
+import software.amazon.awssdk.services.swf.model.ActivityTaskTimeoutType;
+import software.amazon.awssdk.services.swf.model.ScheduleActivityTaskFailedCause;
 
 public class TestGenericActivityClient implements GenericActivityClient {
 
     private final class TestActivityExecutionContext extends ActivityExecutionContext {
 
-        private final ActivityTask activityTask;
-
         private final WorkflowExecution workflowExecution;
 
         private TestActivityExecutionContext(ActivityTask activityTask, WorkflowExecution workflowExecution) {
-            this.activityTask = activityTask;
+            super(activityTask);
             this.workflowExecution = workflowExecution;
         }
 
         @Override
-        public void recordActivityHeartbeat(String details) throws AmazonServiceException, AmazonClientException {
+        public void recordActivityHeartbeat(String details) throws AwsServiceException, SdkException {
             //TODO: timeouts
         }
 
         @Override
-        public ActivityTask getTask() {
-            return activityTask;
-        }
-
-        @Override
-        public AmazonSimpleWorkflow getService() {
+        public SwfClient getService() {
             throw new UnsupportedOperationException("not implemented");
-        }
-
-        @Override
-        public String getTaskToken() {
-            return activityTask.getTaskToken();
         }
 
         @Override
@@ -117,19 +109,22 @@ public class TestGenericActivityClient implements GenericActivityClient {
     public Promise<String> scheduleActivityTask(final ExecuteActivityParameters parameters) {
         final ActivityType activityType = parameters.getActivityType();
         final Settable<String> result = new Settable<String>();
-        final ActivityTask activityTask = new ActivityTask();
         String activityId = parameters.getActivityId();
         if (activityId == null) {
             activityId = decisionContextProvider.getDecisionContext().getWorkflowClient().generateUniqueId();
         }
-        activityTask.setActivityId(activityId);
-        activityTask.setActivityType(activityType);
-        activityTask.setInput(parameters.getInput());
-        activityTask.setStartedEventId(0L);
-        activityTask.setTaskToken("dummyTaskToken");
+
         DecisionContext decisionContext = decisionContextProvider.getDecisionContext();
         final WorkflowExecution workflowExecution = decisionContext.getWorkflowContext().getWorkflowExecution();
-        activityTask.setWorkflowExecution(workflowExecution);
+
+        ActivityTask activityTask = ActivityTask.builder()
+            .activityId(activityId)
+            .activityType(activityType)
+            .input(parameters.getInput())
+            .startedEventId(0L)
+            .taskToken("dummyTaskToken")
+            .workflowExecution(workflowExecution).build();
+
         String taskList = parameters.getTaskList();
         if (taskList == null) {
             ActivityTypeRegistrationOptions ro = registrationOptions.get(activityType);
@@ -141,8 +136,7 @@ public class TestGenericActivityClient implements GenericActivityClient {
             if (FlowConstants.NO_DEFAULT_TASK_LIST.equals(taskList)) {
                 String cause = ScheduleActivityTaskFailedCause.DEFAULT_TASK_LIST_UNDEFINED.toString();
                 throw new ScheduleActivityTaskFailedException(0, activityType, activityId, cause);
-            }
-            else if (taskList == null) {
+            } else if (taskList == null) {
                 taskList = workerTaskLists.get(activityType);
             }
         }
@@ -163,8 +157,7 @@ public class TestGenericActivityClient implements GenericActivityClient {
         try {
             String activityResult = impl.execute(executionContext);
             result.set(activityResult);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             if (e instanceof ActivityFailureException) {
                 ActivityFailureException falure = (ActivityFailureException) e;
                 throw new ActivityTaskFailedException(0, activityType, parameters.getActivityId(), falure.getReason(),
@@ -182,9 +175,7 @@ public class TestGenericActivityClient implements GenericActivityClient {
     @Override
     public Promise<String> scheduleActivityTask(String activity, String version, String input) {
         ExecuteActivityParameters parameters = new ExecuteActivityParameters();
-        ActivityType activityType = new ActivityType();
-        activityType.setName(activity);
-        activityType.setVersion(version);
+        ActivityType activityType = ActivityType.builder().name(activity).version(version).build();
         parameters.setActivityType(activityType);
         parameters.setInput(input);
         return scheduleActivityTask(parameters);

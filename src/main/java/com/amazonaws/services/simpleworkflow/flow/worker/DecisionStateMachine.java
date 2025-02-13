@@ -14,13 +14,14 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.model.Decision;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-
+import software.amazon.awssdk.services.swf.model.Decision;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
 
 interface DecisionStateMachine {
 
     Decision getDecision();
+
+    void throttleDecision();
 
     void cancel(Runnable immediateCancellationCallback);
 

@@ -14,7 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 public class WorkflowTypeRegistrationOptions {
 
@@ -50,8 +50,10 @@ public class WorkflowTypeRegistrationOptions {
     
     /**
      * Default Workflow TaskList. <code>null</code> means to use {@link WorkflowWorker} task list.
-     * TaskList with "NO_DEFAULT_TASK_LIST" name means that no default task list is registered. 
-     * @return
+     * TaskList with "NO_DEFAULT_TASK_LIST" name means that no default task list is registered.
+     *
+     * @return String - the default task list name, null if using WorkflowWorker task list,
+     * or "NO_DEFAULT_TASK_LIST" if no default task list is registered
      */
     public String getDefaultTaskList() {
         return defaultTaskList;

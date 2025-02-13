@@ -14,13 +14,12 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import java.util.List;
-import java.util.Objects;
-
 import com.amazonaws.services.simpleworkflow.flow.StartWorkflowOptions;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowConstants;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import java.util.List;
+import java.util.Objects;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 public class StartChildWorkflowExecutionParameters implements Cloneable {
 

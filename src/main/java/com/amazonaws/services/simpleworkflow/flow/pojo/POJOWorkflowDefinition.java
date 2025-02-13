@@ -14,12 +14,6 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.pojo;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.atomic.AtomicReference;
-
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DataConverterException;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
@@ -31,6 +25,15 @@ import com.amazonaws.services.simpleworkflow.flow.core.Settable;
 import com.amazonaws.services.simpleworkflow.flow.core.TryCatch;
 import com.amazonaws.services.simpleworkflow.flow.core.TryCatchFinally;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinition;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.Metrics;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("rawtypes")
 public class POJOWorkflowDefinition extends WorkflowDefinition {
@@ -68,17 +71,22 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
         else {
             c = workflowMethod.getConverter();
         }
-        final Settable<String> result = new Settable<String>();
-        final AtomicReference<Promise> methodResult = new AtomicReference<Promise>();
+        final Settable<String> result = new Settable<>();
+        final AtomicReference<Promise> methodResult = new AtomicReference<>();
         new TryCatchFinally() {
 
             @Override
             protected void doTry() throws Throwable {
+
                 //TODO: Support ability to call workflow using old client 
                 // after new parameters were added to @Execute method
                 // It requires creation of parameters array of the correct size and
                 // populating the new parameter values with default values for each type
-                Object[] parameters = c.fromData(input, Object[].class);
+                final Object[] parameters = ThreadLocalMetrics.getMetrics().recordSupplier(
+                    () -> c.fromData(input, Object[].class),
+                    c.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_DESERIALIZE.getName(),
+                    TimeUnit.MILLISECONDS
+                );
                 Method method = workflowMethod.getMethod();
                 Object r = invokeMethod(method, parameters);
                 if (!method.getReturnType().equals(Void.TYPE)) {
@@ -104,9 +112,14 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
             protected void doFinally() throws Throwable {
                 Promise r = methodResult.get();
                 if (r == null || r.isReady()) {
-                    Object workflowResult = r == null ? null : r.get();
-                    String convertedResult = c.toData(workflowResult);
-                    result.set(convertedResult);
+                    final Object workflowResult = r == null ? null : r.get();
+                    result.set(
+                        ThreadLocalMetrics.getMetrics().recordSupplier(
+                            () -> c.toData(workflowResult),
+                            c.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+                            TimeUnit.MILLISECONDS
+                        )
+                    );
                 }
             }
         };
@@ -122,8 +135,12 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
                 c = converter;
             }
             Method method = signalMethod.getMethod();
-            Object[] parameters = c.fromData(details, Object[].class);
             final DataConverter delegatedConverter = c;
+            final Object[] parameters = ThreadLocalMetrics.getMetrics().recordSupplier(
+                () -> delegatedConverter.fromData(details, Object[].class),
+                delegatedConverter.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_DESERIALIZE.getName(),
+                TimeUnit.MILLISECONDS
+            );
             new TryCatch() {
 
                 @Override
@@ -159,7 +176,11 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
         try {
             Method method = getStateMethod.getMethod();
             Object result = invokeMethod(method, null);
-            return c.toData(result);
+            return ThreadLocalMetrics.getMetrics().recordSupplier(
+                () -> c.toData(result),
+                c.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+                TimeUnit.MILLISECONDS
+            );
         }
         catch (Throwable e) {
             throwWorkflowException(c, e);
@@ -168,16 +189,21 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
     }
 
     private Object invokeMethod(final Method method, final Object[] input) throws Throwable {
+        final Metrics metrics = ThreadLocalMetrics.getMetrics();
+        final Metrics childMetrics = metrics.newMetrics();
+        ThreadLocalMetrics.setCurrent(childMetrics);
         try {
             // Fill missing parameters with default values to make addition of new parameters backward compatible
             Object[] parameters = FlowHelpers.getInputParameters(method.getParameterTypes(), input);
             return method.invoke(workflowImplementationInstance, parameters);
-        }
-        catch (InvocationTargetException invocationException) {
+        } catch (InvocationTargetException invocationException) {
             if (invocationException.getTargetException() != null) {
                 throw invocationException.getTargetException();
             }
             throw invocationException;
+        } finally {
+            childMetrics.close();
+            ThreadLocalMetrics.setCurrent(metrics);
         }
     }
 
@@ -186,9 +212,13 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
             throw (WorkflowException) exception;
         }
         String reason = WorkflowExecutionUtils.truncateReason(exception.getMessage());
-        String details = null;
+        String details;
         try {
-            details = c.toData(exception);
+            details = ThreadLocalMetrics.getMetrics().recordSupplier(
+                () -> c.toData(exception),
+                c.getClass().getSimpleName() + "@" + MetricName.Operation.DATA_CONVERTER_SERIALIZE.getName(),
+                TimeUnit.MILLISECONDS
+            );
         }
         catch (DataConverterException dataConverterException) {
             if (dataConverterException.getCause() == null) {
@@ -203,5 +233,4 @@ public class POJOWorkflowDefinition extends WorkflowDefinition {
     public Object getImplementationInstance() {
         return workflowImplementationInstance;
     }
-
 }

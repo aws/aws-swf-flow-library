@@ -14,7 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 
 public abstract class WorkflowDefinitionFactoryFactory {
 

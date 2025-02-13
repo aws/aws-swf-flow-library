@@ -15,113 +15,122 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import java.util.List;
-
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 public class StartWorkflowOptions {
-	
+
     private Long executionStartToCloseTimeoutSeconds;
-	
+
     private Long taskStartToCloseTimeoutSeconds;
-    
+
     private List<String> tagList;
-	
+
     private String taskList;
-	
+
     private Integer taskPriority;
 
     private String lambdaRole;
 
     private ChildPolicy childPolicy;
-    
+
+    private String workflowTypeVersion;
+
     public ChildPolicy getChildPolicy() {
         return childPolicy;
     }
-    
+
     public void setChildPolicy(ChildPolicy childPolicy) {
         this.childPolicy = childPolicy;
     }
-    
+
     public StartWorkflowOptions withChildPolicy(ChildPolicy childPolicy) {
         this.childPolicy = childPolicy;
         return this;
     }
-    
+
     public Long getExecutionStartToCloseTimeoutSeconds() {
-		return executionStartToCloseTimeoutSeconds;
-	}
-	
-	public void setExecutionStartToCloseTimeoutSeconds(Long executionStartToCloseTimeoutSeconds) {
-		this.executionStartToCloseTimeoutSeconds = executionStartToCloseTimeoutSeconds;
-	}
-	
-	public StartWorkflowOptions withExecutionStartToCloseTimeoutSeconds(Long executionStartToCloseTimeoutSeconds) {
-		this.executionStartToCloseTimeoutSeconds = executionStartToCloseTimeoutSeconds;
-		return this;
-	}
-	
-	public Long getTaskStartToCloseTimeoutSeconds() {
+        return executionStartToCloseTimeoutSeconds;
+    }
+
+    public void setExecutionStartToCloseTimeoutSeconds(Long executionStartToCloseTimeoutSeconds) {
+        this.executionStartToCloseTimeoutSeconds = executionStartToCloseTimeoutSeconds;
+    }
+
+    public StartWorkflowOptions withExecutionStartToCloseTimeoutSeconds(Long executionStartToCloseTimeoutSeconds) {
+        this.executionStartToCloseTimeoutSeconds = executionStartToCloseTimeoutSeconds;
+        return this;
+    }
+
+    public Long getTaskStartToCloseTimeoutSeconds() {
         return taskStartToCloseTimeoutSeconds;
     }
 
     public void setTaskStartToCloseTimeoutSeconds(Long taskStartToCloseTimeoutSeconds) {
         this.taskStartToCloseTimeoutSeconds = taskStartToCloseTimeoutSeconds;
     }
-    
+
     public StartWorkflowOptions withTaskStartToCloseTimeoutSeconds(Long taskStartToCloseTimeoutSeconds) {
         this.taskStartToCloseTimeoutSeconds = taskStartToCloseTimeoutSeconds;
         return this;
     }
-	
-	public List<String> getTagList() {
-		return tagList;
-	}
 
-	public void setTagList(List<String> tagList) {
-		this.tagList = tagList;
-	}
-	
-	public StartWorkflowOptions withTagList(List<String> tagList) {
-		this.tagList = tagList;
-		return this;
-	}
+    public List<String> getTagList() {
+        return tagList;
+    }
 
-	public String getTaskList() {
-		return taskList;
-	}
+    public void setTagList(List<String> tagList) {
+        this.tagList = tagList;
+    }
 
-	public void setTaskList(String taskList) {
-		this.taskList = taskList;
-	}
-	
-	public StartWorkflowOptions withTaskList(String taskList) {
-		this.taskList = taskList;
-		return this;
-	}
-	
+    public StartWorkflowOptions withTagList(List<String> tagList) {
+        this.tagList = tagList;
+        return this;
+    }
+
+    public String getTaskList() {
+        return taskList;
+    }
+
+    public void setTaskList(String taskList) {
+        this.taskList = taskList;
+    }
+
+    public StartWorkflowOptions withTaskList(String taskList) {
+        this.taskList = taskList;
+        return this;
+    }
+
     public Integer getTaskPriority() {
         return taskPriority;
     }
-	
+
     public void setTaskPriority(Integer taskPriority) {
         this.taskPriority = taskPriority;
     }
-    
+
     public StartWorkflowOptions withTaskPriority(Integer taskPriority) {
-    	this.taskPriority = taskPriority;
-    	return this;
+        this.taskPriority = taskPriority;
+        return this;
     }
 
-	public String getLambdaRole() {
-		return lambdaRole;
-	}
+    public String getLambdaRole() {
+        return lambdaRole;
+    }
 
-	public void setLambdaRole(String lambdaRole) {
-		this.lambdaRole = lambdaRole;
-	}
+    public void setLambdaRole(String lambdaRole) {
+        this.lambdaRole = lambdaRole;
+    }
 
-	public StartWorkflowOptions withLambdaRole(String lambdaRole) {
-		this.lambdaRole = lambdaRole;
-		return this;
-	}
+    public StartWorkflowOptions withLambdaRole(String lambdaRole) {
+        this.lambdaRole = lambdaRole;
+        return this;
+    }
+
+    public String getWorkflowTypeVersion() {
+        return workflowTypeVersion;
+    }
+
+    public void setWorkflowTypeVersion(String workflowTypeVersion) {
+        this.workflowTypeVersion = workflowTypeVersion;
+    }
 }

@@ -14,10 +14,10 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.model.Decision;
-import com.amazonaws.services.simpleworkflow.model.DecisionType;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.ScheduleLambdaFunctionDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.Decision;
+import software.amazon.awssdk.services.swf.model.DecisionType;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.ScheduleLambdaFunctionDecisionAttributes;
 
 class LambdaFunctionDecisionStateMachine extends DecisionStateMachineBase {
 
@@ -71,10 +71,9 @@ class LambdaFunctionDecisionStateMachine extends DecisionStateMachineBase {
     }
 
     private Decision createScheduleLambdaFunctionDecision() {
-        Decision decision = new Decision();
-        decision.setScheduleLambdaFunctionDecisionAttributes(scheduleAttributes);
-        decision.setDecisionType(DecisionType.ScheduleLambdaFunction.toString());
-        return decision;
+        return Decision.builder()
+            .scheduleLambdaFunctionDecisionAttributes(scheduleAttributes)
+            .decisionType(DecisionType.SCHEDULE_LAMBDA_FUNCTION).build();
     }
 
 }

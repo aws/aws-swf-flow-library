@@ -16,8 +16,8 @@ package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClient;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 
 public abstract class WorkflowClientBase implements WorkflowClient {
 
@@ -75,5 +75,4 @@ public abstract class WorkflowClientBase implements WorkflowClient {
     protected void signalWorkflowExecution(String signalName, Object[] arguments, Promise<?>... waitFor) {
         dynamicWorkflowClient.signalWorkflowExecution(signalName, arguments, waitFor);
     }
-
 }

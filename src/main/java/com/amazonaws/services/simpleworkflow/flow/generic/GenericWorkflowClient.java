@@ -15,13 +15,14 @@
 package com.amazonaws.services.simpleworkflow.flow.generic;
 
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
 
 public interface GenericWorkflowClient {
 
     /**
      * Start child workflow.
-     * 
+     *
+     * @param parameters - configuration parameters for executing the child workflow
      * @return becomes ready when child successfully started.
      *         {@link StartChildWorkflowReply#getResult()} becomes ready upon
      *         child completion.
@@ -40,6 +41,8 @@ public interface GenericWorkflowClient {
 
     /**
      * Deterministic unique child workflow id generator
+     *
+     * @return String - unique workflow identifier
      */
     public String generateUniqueId();
 

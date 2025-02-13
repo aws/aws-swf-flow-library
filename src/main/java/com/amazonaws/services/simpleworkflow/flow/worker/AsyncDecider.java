@@ -14,16 +14,9 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import java.util.List;
-import java.util.concurrent.CancellationException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.AmazonServiceException.ErrorType;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContext;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowException;
+import com.amazonaws.services.simpleworkflow.flow.WorkflowExecutionLocal;
 import com.amazonaws.services.simpleworkflow.flow.core.AsyncScope;
 import com.amazonaws.services.simpleworkflow.flow.core.AsyncTaskInfo;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
@@ -31,16 +24,28 @@ import com.amazonaws.services.simpleworkflow.flow.core.Task;
 import com.amazonaws.services.simpleworkflow.flow.generic.ContinueAsNewWorkflowExecutionParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinition;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactory;
-import com.amazonaws.services.simpleworkflow.model.DecisionTask;
-import com.amazonaws.services.simpleworkflow.model.EventType;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.StartTimerFailedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.TimerFiredEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.TimerStartedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionSignaledEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionStartedEventAttributes;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.MetricName;
+import com.amazonaws.services.simpleworkflow.flow.monitoring.ThreadLocalMetrics;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.swf.model.EventType;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.PollForDecisionTaskResponse;
+import software.amazon.awssdk.services.swf.model.StartTimerFailedEventAttributes;
+import software.amazon.awssdk.services.swf.model.TimerFiredEventAttributes;
+import software.amazon.awssdk.services.swf.model.TimerStartedEventAttributes;
+import software.amazon.awssdk.services.swf.model.WorkflowExecutionSignaledEventAttributes;
+import software.amazon.awssdk.services.swf.model.WorkflowExecutionStartedEventAttributes;
 
-class AsyncDecider {
+public class AsyncDecider {
 
     private static abstract class WorkflowAsyncScope extends AsyncScope {
 
@@ -59,13 +64,13 @@ class AsyncDecider {
         private Promise<String> output;
 
         public WorkflowExecuteAsyncScope(HistoryEvent event) {
-            assert event.getEventType().equals(EventType.WorkflowExecutionStarted.toString());
-            this.attributes = event.getWorkflowExecutionStartedEventAttributes();
+            assert event.eventTypeAsString().equals(EventType.WORKFLOW_EXECUTION_STARTED.toString());
+            this.attributes = event.workflowExecutionStartedEventAttributes();
         }
 
         @Override
         protected void doAsync() throws Throwable {
-            output = definition.execute(attributes.getInput());
+            output = definition.execute(attributes.input());
         }
 
         @Override
@@ -129,8 +134,11 @@ class AsyncDecider {
 
     private WorkflowDefinition definition;
 
-    private final HistoryHelper historyHelper;
+    @Setter
+    @Getter
+    private HistoryHelper historyHelper;
 
+    @Getter
     private final DecisionsHelper decisionsHelper;
 
     private final GenericActivityClientImpl activityClient;
@@ -155,190 +163,200 @@ class AsyncDecider {
 
     private Throwable failure;
 
+    @Getter
+    private String originalTaskList;
+
+    private Map<String, WorkflowExecutionLocal.Wrapper> savedWorkflowExecutionLocalValues;
+
     public AsyncDecider(WorkflowDefinitionFactory workflowDefinitionFactory, HistoryHelper historyHelper,
             DecisionsHelper decisionsHelper) throws Exception {
         this.workflowDefinitionFactory = workflowDefinitionFactory;
         this.historyHelper = historyHelper;
         this.decisionsHelper = decisionsHelper;
         this.activityClient = new GenericActivityClientImpl(decisionsHelper);
-        DecisionTask decisionTask = historyHelper.getDecisionTask();
+        PollForDecisionTaskResponse decisionTask = historyHelper.getDecisionTask();
         this.workflowClock = new WorkflowClockImpl(decisionsHelper);
         workflowContext = new WorkflowContextImpl(decisionTask, workflowClock);
         workflowContext.setComponentVersions(historyHelper.getComponentVersions());
         this.workflowClient = new GenericWorkflowClientImpl(decisionsHelper, workflowContext);
         this.lambdaFunctionClient = new LambdaFunctionClientImpl(decisionsHelper);
-        context = new DecisionContextImpl(activityClient, workflowClient, workflowClock, 
-        		workflowContext, lambdaFunctionClient);
+        context = new DecisionContextImpl(activityClient, workflowClient, workflowClock,
+            workflowContext, lambdaFunctionClient);
     }
 
     public boolean isCancelRequested() {
         return cancelRequested;
     }
 
+    public boolean hasCompletedWithoutUnhandledDecision() {
+        return completed && !unhandledDecision;
+    }
+
     private void handleWorkflowExecutionStarted(HistoryEvent event) {
         workflowAsyncScope = new WorkflowExecuteAsyncScope(event);
+        originalTaskList = event.workflowExecutionStartedEventAttributes().taskList().name();
     }
 
     private void processEvent(HistoryEvent event, EventType eventType) throws Throwable {
         switch (eventType) {
-        case ActivityTaskCanceled:
+        case ACTIVITY_TASK_CANCELED:
             activityClient.handleActivityTaskCanceled(event);
             break;
-        case ActivityTaskCompleted:
+        case ACTIVITY_TASK_COMPLETED:
             activityClient.handleActivityTaskCompleted(event);
             break;
-        case ActivityTaskFailed:
+        case ACTIVITY_TASK_FAILED:
             activityClient.handleActivityTaskFailed(event);
             break;
-        case ActivityTaskStarted:
-            activityClient.handleActivityTaskStarted(event.getActivityTaskStartedEventAttributes());
+        case ACTIVITY_TASK_STARTED:
+            activityClient.handleActivityTaskStarted(event.activityTaskStartedEventAttributes());
             break;
-        case ActivityTaskTimedOut:
+        case ACTIVITY_TASK_TIMED_OUT:
             activityClient.handleActivityTaskTimedOut(event);
             break;
-        case ExternalWorkflowExecutionCancelRequested:
+        case EXTERNAL_WORKFLOW_EXECUTION_CANCEL_REQUESTED:
             workflowClient.handleChildWorkflowExecutionCancelRequested(event);
             break;
-        case ChildWorkflowExecutionCanceled:
+        case CHILD_WORKFLOW_EXECUTION_CANCELED:
             workflowClient.handleChildWorkflowExecutionCanceled(event);
             break;
-        case ChildWorkflowExecutionCompleted:
+        case CHILD_WORKFLOW_EXECUTION_COMPLETED:
             workflowClient.handleChildWorkflowExecutionCompleted(event);
             break;
-        case ChildWorkflowExecutionFailed:
+        case CHILD_WORKFLOW_EXECUTION_FAILED:
             workflowClient.handleChildWorkflowExecutionFailed(event);
             break;
-        case ChildWorkflowExecutionStarted:
+        case CHILD_WORKFLOW_EXECUTION_STARTED:
             workflowClient.handleChildWorkflowExecutionStarted(event);
             break;
-        case ChildWorkflowExecutionTerminated:
+        case CHILD_WORKFLOW_EXECUTION_TERMINATED:
             workflowClient.handleChildWorkflowExecutionTerminated(event);
             break;
-        case ChildWorkflowExecutionTimedOut:
+        case CHILD_WORKFLOW_EXECUTION_TIMED_OUT:
             workflowClient.handleChildWorkflowExecutionTimedOut(event);
             break;
-        case DecisionTaskCompleted:
+        case DECISION_TASK_COMPLETED:
             handleDecisionTaskCompleted(event);
             break;
-        case DecisionTaskScheduled:
+        case DECISION_TASK_SCHEDULED:
             // NOOP
             break;
-        case DecisionTaskStarted:
+        case DECISION_TASK_STARTED:
             handleDecisionTaskStarted(event);
             break;
-        case DecisionTaskTimedOut:
+        case DECISION_TASK_TIMED_OUT:
             // Handled in the processEvent(event)
             break;
-        case ExternalWorkflowExecutionSignaled:
+        case EXTERNAL_WORKFLOW_EXECUTION_SIGNALED:
             workflowClient.handleExternalWorkflowExecutionSignaled(event);
             break;
-        case ScheduleActivityTaskFailed:
+        case SCHEDULE_ACTIVITY_TASK_FAILED:
             activityClient.handleScheduleActivityTaskFailed(event);
             break;
-        case SignalExternalWorkflowExecutionFailed:
+        case SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED:
             workflowClient.handleSignalExternalWorkflowExecutionFailed(event);
             break;
-        case StartChildWorkflowExecutionFailed:
+        case START_CHILD_WORKFLOW_EXECUTION_FAILED:
             workflowClient.handleStartChildWorkflowExecutionFailed(event);
             break;
-        case StartTimerFailed:
+        case START_TIMER_FAILED:
             handleStartTimerFailed(event);
             break;
-        case TimerFired:
+        case TIMER_FIRED:
             handleTimerFired(event);
             break;
-        case WorkflowExecutionCancelRequested:
+        case WORKFLOW_EXECUTION_CANCEL_REQUESTED:
             handleWorkflowExecutionCancelRequested(event);
             break;
-        case WorkflowExecutionSignaled:
+        case WORKFLOW_EXECUTION_SIGNALED:
             handleWorkflowExecutionSignaled(event);
             break;
-        case WorkflowExecutionStarted:
+        case WORKFLOW_EXECUTION_STARTED:
             handleWorkflowExecutionStarted(event);
             break;
-        case WorkflowExecutionTerminated:
+        case WORKFLOW_EXECUTION_TERMINATED:
             // NOOP
             break;
-        case WorkflowExecutionTimedOut:
+        case WORKFLOW_EXECUTION_TIMED_OUT:
             // NOOP
             break;
-        case ActivityTaskScheduled:
+        case ACTIVITY_TASK_SCHEDULED:
             decisionsHelper.handleActivityTaskScheduled(event);
             break;
-        case ActivityTaskCancelRequested:
+        case ACTIVITY_TASK_CANCEL_REQUESTED:
             decisionsHelper.handleActivityTaskCancelRequested(event);
             break;
-        case RequestCancelActivityTaskFailed:
+        case REQUEST_CANCEL_ACTIVITY_TASK_FAILED:
             decisionsHelper.handleRequestCancelActivityTaskFailed(event);
             break;
-        case MarkerRecorded:
+        case MARKER_RECORDED:
             break;
-        case RecordMarkerFailed:
-        	break;
-        case WorkflowExecutionCompleted:
+        case RECORD_MARKER_FAILED:
             break;
-        case CompleteWorkflowExecutionFailed:
+        case WORKFLOW_EXECUTION_COMPLETED:
+            break;
+        case COMPLETE_WORKFLOW_EXECUTION_FAILED:
             unhandledDecision = true;
             decisionsHelper.handleCompleteWorkflowExecutionFailed(event);
             break;
-        case WorkflowExecutionFailed:
+        case WORKFLOW_EXECUTION_FAILED:
             break;
-        case FailWorkflowExecutionFailed:
+        case FAIL_WORKFLOW_EXECUTION_FAILED:
             unhandledDecision = true;
             decisionsHelper.handleFailWorkflowExecutionFailed(event);
             break;
-        case WorkflowExecutionCanceled:
+        case WORKFLOW_EXECUTION_CANCELED:
             break;
-        case CancelWorkflowExecutionFailed:
+        case CANCEL_WORKFLOW_EXECUTION_FAILED:
             unhandledDecision = true;
             decisionsHelper.handleCancelWorkflowExecutionFailed(event);
             break;
-        case WorkflowExecutionContinuedAsNew:
+        case WORKFLOW_EXECUTION_CONTINUED_AS_NEW:
             break;
-        case ContinueAsNewWorkflowExecutionFailed:
+        case CONTINUE_AS_NEW_WORKFLOW_EXECUTION_FAILED:
             unhandledDecision = true;
             decisionsHelper.handleContinueAsNewWorkflowExecutionFailed(event);
             break;
-        case TimerStarted:
+        case TIMER_STARTED:
             handleTimerStarted(event);
             break;
-        case TimerCanceled:
+        case TIMER_CANCELED:
             workflowClock.handleTimerCanceled(event);
             break;
-        case LambdaFunctionScheduled:
+        case LAMBDA_FUNCTION_SCHEDULED:
             decisionsHelper.handleLambdaFunctionScheduled(event);
             break;
-        case LambdaFunctionStarted:
-            lambdaFunctionClient.handleLambdaFunctionStarted(event.getLambdaFunctionStartedEventAttributes());
+        case LAMBDA_FUNCTION_STARTED:
+            lambdaFunctionClient.handleLambdaFunctionStarted(event.lambdaFunctionStartedEventAttributes());
             break;
-        case LambdaFunctionCompleted:
+        case LAMBDA_FUNCTION_COMPLETED:
             lambdaFunctionClient.handleLambdaFunctionCompleted(event);
             break;
-        case LambdaFunctionFailed:
+        case LAMBDA_FUNCTION_FAILED:
             lambdaFunctionClient.handleLambdaFunctionFailed(event);
             break;
-        case LambdaFunctionTimedOut:
+        case LAMBDA_FUNCTION_TIMED_OUT:
             lambdaFunctionClient.handleLambdaFunctionTimedOut(event);
             break;
-        case StartLambdaFunctionFailed:
+        case START_LAMBDA_FUNCTION_FAILED:
             lambdaFunctionClient.handleStartLambdaFunctionFailed(event);
             break;
-        case ScheduleLambdaFunctionFailed:
+        case SCHEDULE_LAMBDA_FUNCTION_FAILED:
             lambdaFunctionClient.handleScheduleLambdaFunctionFailed(event);
             break;
-        case SignalExternalWorkflowExecutionInitiated:
+        case SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_INITIATED:
             decisionsHelper.handleSignalExternalWorkflowExecutionInitiated(event);
             break;
-        case RequestCancelExternalWorkflowExecutionInitiated:
+        case REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_INITIATED:
             decisionsHelper.handleRequestCancelExternalWorkflowExecutionInitiated(event);
             break;
-        case RequestCancelExternalWorkflowExecutionFailed:
+        case REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_FAILED:
             decisionsHelper.handleRequestCancelExternalWorkflowExecutionFailed(event);
             break;
-        case StartChildWorkflowExecutionInitiated:
+        case START_CHILD_WORKFLOW_EXECUTION_INITIATED:
             workflowClient.handleChildWorkflowExecutionInitiated(event);
             break;
-        case CancelTimerFailed:
+        case CANCEL_TIMER_FAILED:
             decisionsHelper.handleCancelTimerFailed(event);
         }
     }
@@ -349,41 +367,35 @@ class AsyncDecider {
         }
         try {
             completed = workflowAsyncScope.eventLoop();
-        }
-        catch (CancellationException e) {
+        } catch (CancellationException e) {
             if (!cancelRequested) {
                 failure = e;
             }
             completed = true;
         } catch (Error e) {
             throw e;
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             failure = e;
             completed = true;
         }
     }
 
     private void completeWorkflowIfCompleted() {
-        if (completed && !unhandledDecision) {
+        if (hasCompletedWithoutUnhandledDecision()) {
             if (failure != null) {
                 decisionsHelper.failWorkflowExecution(failure);
-            }
-            else if (cancelRequested) {
+            } else if (cancelRequested) {
                 decisionsHelper.cancelWorkflowExecution();
-            }
-            else {
+            } else {
                 ContinueAsNewWorkflowExecutionParameters continueAsNewOnCompletion = workflowContext.getContinueAsNewOnCompletion();
                 if (continueAsNewOnCompletion != null) {
                     decisionsHelper.continueAsNewWorkflowExecution(continueAsNewOnCompletion);
-                }
-                else {
+                } else {
                     Promise<String> output = workflowAsyncScope.getOutput();
                     if (output != null && output.isReady()) {
                         String workflowOutput = output.get();
                         decisionsHelper.completeWorkflowExecution(workflowOutput);
-                    }
-                    else {
+                    } else {
                         decisionsHelper.completeWorkflowExecution(null);
                     }
                 }
@@ -401,8 +413,8 @@ class AsyncDecider {
     }
 
     private void handleStartTimerFailed(HistoryEvent event) {
-        StartTimerFailedEventAttributes attributes = event.getStartTimerFailedEventAttributes();
-        String timerId = attributes.getTimerId();
+        StartTimerFailedEventAttributes attributes = event.startTimerFailedEventAttributes();
+        String timerId = attributes.timerId();
         if (timerId.equals(DecisionsHelper.FORCE_IMMEDIATE_DECISION_TIMER)) {
             return;
         }
@@ -410,17 +422,17 @@ class AsyncDecider {
     }
 
     private void handleTimerFired(HistoryEvent event) throws Throwable {
-        TimerFiredEventAttributes attributes = event.getTimerFiredEventAttributes();
-        String timerId = attributes.getTimerId();
+        TimerFiredEventAttributes attributes = event.timerFiredEventAttributes();
+        String timerId = attributes.timerId();
         if (timerId.equals(DecisionsHelper.FORCE_IMMEDIATE_DECISION_TIMER)) {
             return;
         }
-        workflowClock.handleTimerFired(event.getEventId(), attributes);
+        workflowClock.handleTimerFired(event.eventId(), attributes);
     }
 
     private void handleTimerStarted(HistoryEvent event) {
-        TimerStartedEventAttributes attributes = event.getTimerStartedEventAttributes();
-        String timerId = attributes.getTimerId();
+        TimerStartedEventAttributes attributes = event.timerStartedEventAttributes();
+        String timerId = attributes.timerId();
         if (timerId.equals(DecisionsHelper.FORCE_IMMEDIATE_DECISION_TIMER)) {
             return;
         }
@@ -428,11 +440,11 @@ class AsyncDecider {
     }
 
     private void handleWorkflowExecutionSignaled(HistoryEvent event) throws Throwable {
-        assert (event.getEventType().equals(EventType.WorkflowExecutionSignaled.toString()));
-        final WorkflowExecutionSignaledEventAttributes signalAttributes = event.getWorkflowExecutionSignaledEventAttributes();
+        assert (event.eventTypeAsString().equals(EventType.WORKFLOW_EXECUTION_SIGNALED.toString()));
+        final WorkflowExecutionSignaledEventAttributes signalAttributes = event.workflowExecutionSignaledEventAttributes();
         if (completed) {
             workflowAsyncScope = new UnhandledSignalAsyncScope(workflowAsyncScope.getOutput(), workflowAsyncScope.getFailure(),
-                    workflowAsyncScope.isCancelRequested());
+                workflowAsyncScope.isCancelRequested());
             completed = false;
         }
         // This task is attached to the root context of the workflowAsyncScope
@@ -440,93 +452,101 @@ class AsyncDecider {
 
             @Override
             protected void doExecute() throws Throwable {
-                definition.signalRecieved(signalAttributes.getSignalName(), signalAttributes.getInput());
+                definition.signalRecieved(signalAttributes.signalName(), signalAttributes.input());
             }
 
         };
     }
 
     private void handleDecisionTaskCompleted(HistoryEvent event) {
-        decisionsHelper.handleDecisionCompletion(event.getDecisionTaskCompletedEventAttributes());
+        decisionsHelper.handleDecisionCompletion(event.decisionTaskCompletedEventAttributes());
     }
 
     public void decide() throws Exception {
         try {
-            try {
-            definition = workflowDefinitionFactory.getWorkflowDefinition(context);
-            } catch (Exception e) {
-                throw new Error("Failed to get workflow definition for " + context, e);
+            // Reusing the existing workflow definition for a cached decider
+            if (definition != null) {
+                CurrentDecisionContext.set(context);
+                if (savedWorkflowExecutionLocalValues == null) {
+                    ThreadLocalMetrics.getMetrics().recordCount(MetricName.AFFINITY_WORKER_WORKFLOW_EXECUTION_LOCAL_FAILURE.getName(), 1);
+                    log.error("Unable to restore WorkflowExecutionLocals for affinity worker. Your WorkflowExecutionLocals will not work as expected.");
+                } else {
+                    WorkflowExecutionLocal.restoreFromSavedValues(savedWorkflowExecutionLocalValues);
+                }
+            } else {
+                try {
+                    definition = workflowDefinitionFactory.getWorkflowDefinition(context);
+                } catch (Exception e) {
+                    throw new Error("Failed to get workflow definition for " + context, e);
+                }
             }
             if (definition == null) {
-            	throw new IllegalStateException("Null workflow definition returned for: " + context.getWorkflowContext().getWorkflowType());
+                final WorkflowType workflowType = context.getWorkflowContext().getWorkflowType();
+                ThreadLocalMetrics.getMetrics().recordCount(MetricName.TYPE_NOT_FOUND.getName(), 1, MetricName.getWorkflowTypeDimension(workflowType));
+            	throw new IllegalStateException("Null workflow definition returned for: " + workflowType);
             }
             decideImpl();
-        }
-        catch (AmazonServiceException e) {
+        } catch (AwsServiceException e) {
             // We don't want to fail workflow on service exceptions like 500 or throttling
             // Throwing from here drops decision task which is OK as it is rescheduled after its StartToClose timeout.
-            if (e.getErrorType() == ErrorType.Client && !"ThrottlingException".equals(e.getErrorCode())) {
+            if (e.isThrottlingException()) {
                 if (log.isErrorEnabled()) {
                     log.error("Failing workflow " + workflowContext.getWorkflowExecution(), e);
                 }
                 decisionsHelper.failWorkflowDueToUnexpectedError(e);
-            }
-            else {
+            } else {
                 throw e;
             }
-        } catch (Error e) {
-            // Do not fail workflow on Error. Fail the decision.
+        } catch (SdkClientException | Error e) {
+            // Do not fail workflow on SdkClientException or Error. Fail the decision.
             throw e;
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             if (log.isErrorEnabled()) {
                 log.error("Failing workflow " + workflowContext.getWorkflowExecution(), e);
             }
             decisionsHelper.failWorkflowDueToUnexpectedError(e);
-        }
-        finally {
+        } finally {
             try {
-            	if (definition != null) {
+                if (definition != null) {
                     decisionsHelper.setWorkflowContextData(definition.getWorkflowState());
                 }
-            }
-            catch (WorkflowException e) {
+            } catch (WorkflowException e) {
                 decisionsHelper.setWorkflowContextData(e.getDetails());
-            }
-            catch (Throwable e) {
+            } catch (Throwable e) {
                 decisionsHelper.setWorkflowContextData(e.getMessage());
             }
             if (definition != null) {
+                savedWorkflowExecutionLocalValues = WorkflowExecutionLocal.saveCurrentValues();
                 workflowDefinitionFactory.deleteWorkflowDefinition(definition);
             }
         }
     }
 
-    private void decideImpl() throws Exception, Throwable {
+    private void decideImpl() throws Throwable {
         List<HistoryEvent> singleDecisionEvents = historyHelper.getSingleDecisionEvents();
-        while(singleDecisionEvents != null && singleDecisionEvents.size() > 0) {
+        while (singleDecisionEvents != null && singleDecisionEvents.size() > 0) {
             decisionsHelper.handleDecisionTaskStartedEvent();
             for (HistoryEvent event : singleDecisionEvents) {
                 Long lastNonReplayedEventId = historyHelper.getLastNonReplayEventId();
-                if (event.getEventId() >= lastNonReplayedEventId) {
+                if (event.eventId() >= lastNonReplayedEventId) {
                     workflowClock.setReplaying(false);
                 }
                 long replayCurrentTimeMilliseconds = historyHelper.getReplayCurrentTimeMilliseconds();
                 workflowClock.setReplayCurrentTimeMilliseconds(replayCurrentTimeMilliseconds);
-                EventType eventType = EventType.valueOf(event.getEventType());
+                EventType eventType = EventType.fromValue(event.eventTypeAsString());
                 processEvent(event, eventType);
                 eventLoop(event);
             }
             completeWorkflowIfCompleted();
             singleDecisionEvents = historyHelper.getSingleDecisionEvents();
         }
-        
+
         if (unhandledDecision) {
             unhandledDecision = false;
             completeWorkflowIfCompleted();
         }
     }
-    
+
     public List<AsyncTaskInfo> getAsynchronousThreadDump() {
         checkAsynchronousThreadDumpState();
         return workflowAsyncScope.getAsynchronousThreadDump();
@@ -543,16 +563,11 @@ class AsyncDecider {
         }
         if (decisionsHelper.isWorkflowFailed()) {
             throw new IllegalStateException("Cannot get AsynchronousThreadDump of a failed workflow",
-                    decisionsHelper.getWorkflowFailureCause());
+                decisionsHelper.getWorkflowFailureCause());
         }
-    }
-
-    public DecisionsHelper getDecisionsHelper() {
-        return decisionsHelper;
     }
 
     public WorkflowDefinition getWorkflowDefinition() {
         return definition;
     }
-
 }

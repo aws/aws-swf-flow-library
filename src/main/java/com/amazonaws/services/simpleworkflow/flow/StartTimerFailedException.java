@@ -14,7 +14,7 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.StartTimerFailedCause;
+import software.amazon.awssdk.services.swf.model.StartTimerFailedCause;
 
 /**
  * Exception used to communicate that timer wasn't scheduled due to some cause

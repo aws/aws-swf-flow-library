@@ -15,7 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClient;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
 
 public interface WorkflowClientFactory<T> {
 

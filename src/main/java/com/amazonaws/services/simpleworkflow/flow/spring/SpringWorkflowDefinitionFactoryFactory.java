@@ -36,12 +36,12 @@ import com.amazonaws.services.simpleworkflow.flow.generic.StartChildWorkflowExec
 import com.amazonaws.services.simpleworkflow.flow.generic.StartChildWorkflowReply;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactory;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactoryFactory;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowDefinitionFactoryFactory;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowImplementationFactory;
 import com.amazonaws.services.simpleworkflow.flow.worker.LambdaFunctionClient;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
 
 class SpringWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFactoryFactory {
 
@@ -150,10 +150,7 @@ class SpringWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFactoryFa
 
                 @Override
                 public WorkflowExecution getWorkflowExecution() {
-                    WorkflowExecution result = new WorkflowExecution();
-                    result.setRunId("dummyRunId");
-                    result.setWorkflowId("dummyWorkflowId");
-                    return result;
+                    return WorkflowExecution.builder().runId("dummyRunId").workflowId("dummyWorkflowId").build();
                 }
 
                 @Override
@@ -163,10 +160,7 @@ class SpringWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFactoryFa
 
                 @Override
                 public WorkflowType getWorkflowType() {
-                    WorkflowType result = new WorkflowType();
-                    result.setName("dummyName");
-                    result.setVersion("dummyVersion");
-                    return result;
+                    return WorkflowType.builder().name("dummyName").version("dummyVersion").build();
                 }
 
                 @Override

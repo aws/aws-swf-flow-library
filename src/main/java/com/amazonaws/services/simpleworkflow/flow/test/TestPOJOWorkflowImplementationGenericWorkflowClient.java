@@ -14,9 +14,6 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.test;
 
-import java.util.Collection;
-import java.util.Map;
-
 import com.amazonaws.services.simpleworkflow.flow.DataConverter;
 import com.amazonaws.services.simpleworkflow.flow.DecisionContextProvider;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowException;
@@ -26,9 +23,11 @@ import com.amazonaws.services.simpleworkflow.flow.generic.GenericWorkflowClient;
 import com.amazonaws.services.simpleworkflow.flow.generic.SignalExternalWorkflowParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.StartChildWorkflowExecutionParameters;
 import com.amazonaws.services.simpleworkflow.flow.generic.StartChildWorkflowReply;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 import com.amazonaws.services.simpleworkflow.flow.pojo.POJOWorkflowDefinitionFactoryFactory;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import java.util.Collection;
+import java.util.Map;
 
 
 public class TestPOJOWorkflowImplementationGenericWorkflowClient implements GenericWorkflowClient {

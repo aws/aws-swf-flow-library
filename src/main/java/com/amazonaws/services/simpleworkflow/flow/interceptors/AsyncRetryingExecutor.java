@@ -16,6 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow.interceptors;
 
 import java.util.Date;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.amazonaws.services.simpleworkflow.flow.WorkflowClock;
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
@@ -34,9 +35,16 @@ public class AsyncRetryingExecutor implements AsyncExecutor {
 
     private WorkflowClock clock;
 
-    public AsyncRetryingExecutor(RetryPolicy retryPolicy, WorkflowClock clock) {
+    private AtomicLong firstAttemptTime;
+
+    public AsyncRetryingExecutor(RetryPolicy retryPolicy, WorkflowClock clock, AtomicLong firstAttemptTime) {
         this.retryPolicy = retryPolicy;
         this.clock = clock;
+        this.firstAttemptTime = firstAttemptTime;
+    }
+
+    public AsyncRetryingExecutor(RetryPolicy retryPolicy, WorkflowClock clock) {
+        this(retryPolicy, clock, new AtomicLong(0));
     }
 
     @Override
@@ -50,16 +58,20 @@ public class AsyncRetryingExecutor implements AsyncExecutor {
         };
     }
 
-    private void scheduleWithRetry(final AsyncRunnable command, final Throwable failure, final int attempt,
-            final long firstAttemptTime, final long timeOfRecordedFailure) throws Throwable {
+    private void scheduleWithRetry(final AsyncRunnable command, final Throwable failure,
+                                   final int attempt, final long timeOfFirstAttempt, final long timeOfRecordedFailure) throws Throwable {
         long delay = -1;
         if (attempt > 1) {
             if (!retryPolicy.isRetryable(failure)) {
                 throw failure;
             }
-
-            delay = retryPolicy.nextRetryDelaySeconds(new Date(firstAttemptTime), new Date(timeOfRecordedFailure), attempt);
-
+            Date firstAttempt;
+            if (firstAttemptTime.get() == 0) {
+                firstAttempt = new Date(timeOfFirstAttempt);
+            } else {
+                firstAttempt = new Date(firstAttemptTime.get());
+            }
+            delay = retryPolicy.nextRetryDelaySeconds(firstAttempt, new Date(timeOfRecordedFailure), attempt);
             if (delay < 0) {
                 throw failure;
             }
@@ -71,17 +83,17 @@ public class AsyncRetryingExecutor implements AsyncExecutor {
 
                 @Override
                 protected void doExecute() throws Throwable {
-                    invoke(command, attempt, firstAttemptTime);
+                    invoke(command, attempt, timeOfFirstAttempt);
                 }
             };
         }
         else {
-            invoke(command, attempt, firstAttemptTime);
+            invoke(command, attempt, timeOfFirstAttempt);
         }
 
     }
 
-    private void invoke(final AsyncRunnable command, final int attempt, final long firstAttemptTime) {
+    private void invoke(final AsyncRunnable command, final int attempt, final long timeOfFirstAttempt) {
         final Settable<Throwable> shouldRetry = new Settable<Throwable>();
 
         new TryCatchFinally() {
@@ -113,7 +125,7 @@ public class AsyncRetryingExecutor implements AsyncExecutor {
             protected void doExecute() throws Throwable {
                 Throwable failure = shouldRetry.get();
                 if (failure != null) {
-                    scheduleWithRetry(command, failure, attempt + 1, firstAttemptTime, clock.currentTimeMillis());
+                    scheduleWithRetry(command, failure, attempt + 1, timeOfFirstAttempt, clock.currentTimeMillis());
                 }
             }
         };

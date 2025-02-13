@@ -14,15 +14,15 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.model.Decision;
-import com.amazonaws.services.simpleworkflow.model.DecisionType;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.SignalExternalWorkflowExecutionDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.Decision;
+import software.amazon.awssdk.services.swf.model.DecisionType;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.SignalExternalWorkflowExecutionDecisionAttributes;
 
 class SignalDecisionStateMachine extends DecisionStateMachineBase {
 
     private SignalExternalWorkflowExecutionDecisionAttributes attributes;
-    
+
     private boolean canceled;
 
     public SignalDecisionStateMachine(DecisionId id, SignalExternalWorkflowExecutionDecisionAttributes attributes) {
@@ -37,7 +37,7 @@ class SignalDecisionStateMachine extends DecisionStateMachineBase {
         super(id, state);
         this.attributes = attributes;
     }
-    
+
     @Override
     public Decision getDecision() {
         switch (state) {
@@ -149,10 +149,8 @@ class SignalDecisionStateMachine extends DecisionStateMachineBase {
     }
 
     private Decision createSignalExternalWorkflowExecutionDecision() {
-        Decision decision = new Decision();
-        decision.setSignalExternalWorkflowExecutionDecisionAttributes(attributes);
-        decision.setDecisionType(DecisionType.SignalExternalWorkflowExecution.toString());
-        return decision;
+        return Decision.builder().signalExternalWorkflowExecutionDecisionAttributes(attributes)
+            .decisionType(DecisionType.SIGNAL_EXTERNAL_WORKFLOW_EXECUTION).build();
     }
 
 }

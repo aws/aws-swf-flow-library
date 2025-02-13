@@ -1,14 +1,14 @@
-/**
- * Copyright 2012-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *  http://aws.amazon.com/apache2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+/*
+ * Copyright 2012 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"). You may not
+ * use this file except in compliance with the License. A copy of the License is
+ * located at
+ * 
+ * http://aws.amazon.com/apache2.0
+ * 
+ * or in the "license" file accompanying this file. This file is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
@@ -38,6 +38,8 @@ public @interface WorkflowComponentImplementationVersion {
  
     /**
      * Name of a versioned component.
+     *
+     * @return component name
      */
     String componentName();
  
@@ -45,6 +47,8 @@ public @interface WorkflowComponentImplementationVersion {
      * Minimum code implementation version supported by the workflow definition
      * code. Attempt to replay history that was created with a lower
      * implementation version must fail the decision.
+     *
+     * @return minimum version number, defaults to 0
      */
     int minimumSupported() default 0;
  
@@ -52,6 +56,8 @@ public @interface WorkflowComponentImplementationVersion {
      * Maximum code implementation version supported by the workflow definition
      * code. Attempt to replay history that was created with a higher
      * implementation version must fail the decision.
+     *
+     * @return maximum supported version number
      */
     int maximumSupported();
  
@@ -64,6 +70,8 @@ public @interface WorkflowComponentImplementationVersion {
      * To avoid code change after the deployment consider changing maximum
      * allowed implementation version through
      * {@link WorkflowWorker#setMaximumAllowedComponentImplementationVersions(java.util.Map)}.
+     *
+     * @return maximum allowed version, defaults to Integer.MAX_VALUE
      */
     int maximumAllowed() default Integer.MAX_VALUE;
  

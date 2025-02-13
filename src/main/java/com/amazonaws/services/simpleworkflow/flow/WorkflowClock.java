@@ -15,7 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
-import com.amazonaws.services.simpleworkflow.model.DecisionTask;
+import software.amazon.awssdk.services.swf.model.PollForDecisionTaskResponse;
 
 /**
  * Clock that must be used inside workflow definition code to ensure replay
@@ -24,7 +24,7 @@ import com.amazonaws.services.simpleworkflow.model.DecisionTask;
 public interface WorkflowClock {
 
     /**
-     * @return time of the {@link DecisionTask} start event of the decision
+     * @return time of the {@link PollForDecisionTaskResponse} start event of the decision
      *         being processed or replayed.
      */
     public long currentTimeMillis();
@@ -33,7 +33,9 @@ public interface WorkflowClock {
      * <code>true</code> indicates if workflow is replaying already processed
      * events to reconstruct it state. <code>false</code> indicates that code is
      * making forward process for the first time. For example can be used to
-     * avoid duplicating log records due to replay. 
+     * avoid duplicating log records due to replay.
+     *
+     * @return boolean - true if workflow is in replay mode, false if executing for the first time
      */
     public boolean isReplaying();
 
@@ -48,7 +50,9 @@ public interface WorkflowClock {
 
     /**
      * Create a Value that becomes ready after the specified delay.
-     * 
+     *
+     * @param <T> - the type of the context object
+     * @param delaySeconds - the number of seconds to wait before the timer fires
      * @param context
      *            context object that is returned inside the value when it
      *            becomes ready.
@@ -59,7 +63,10 @@ public interface WorkflowClock {
     
     /**
      * Create a Value that becomes ready after the specified delay and the provided timerId.
-     * 
+     *
+     * @param <T> - the type of the context object
+     * @param delaySeconds - the number of seconds to wait before the timer fires
+     * @param context - context object that is returned inside the Promise when it becomes ready
      * @param timerId The Id for the timer.
      * @return Promise that becomes ready after the specified delay. When ready
      *         it contains value passed as context parameter.

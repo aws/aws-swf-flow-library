@@ -23,7 +23,7 @@ import java.util.Map;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowTypeRegistrationOptions;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactory;
 import com.amazonaws.services.simpleworkflow.flow.generic.WorkflowDefinitionFactoryFactory;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
 
 public class SimpleWorkflowDefinitionFactoryFactory extends WorkflowDefinitionFactoryFactory {
 

@@ -30,6 +30,8 @@ public @interface ActivityCompletionRetryOptions {
      * <p>
      * This value should not be greater than values specified for
      * maximumRetryPeriod or retryExpirationPeriod. Default is 10 seconds.
+     *
+     * @return initial retry interval in seconds
      */
     long initialRetryIntervalSeconds() default 10;
 
@@ -38,6 +40,8 @@ public @interface ActivityCompletionRetryOptions {
      * <p>
      * This value should not be less than value specified for
      * initialRetryPeriod. Default value is 60 seconds.
+     *
+     * @return maximum retry interval in seconds
      */
     long maximumRetryIntervalSeconds() default 60;
 
@@ -50,6 +54,8 @@ public @interface ActivityCompletionRetryOptions {
      * <p>
      * This value should not be less than value specified for
      * initialRetryPeriod. Default value is 300.
+     *
+     * @return retry expiration time in seconds
      */
     long retryExpirationSeconds() default 300;
 
@@ -58,12 +64,16 @@ public @interface ActivityCompletionRetryOptions {
      * <p>
      * The retry interval will be multiplied by this coefficient after each
      * subsequent failure. Default is 2.0.
+     *
+     * @return backoff multiplier coefficient
      */
     double backoffCoefficient() default FlowDefaults.EXPONENTIAL_RETRY_BACKOFF_COEFFICIENT;
 
     /**
      * Number of maximum retry attempts (including the initial attempt). Default
      * value is 10.
+     *
+     * @return maximum number of retry attempts
      */
     int maximumAttempts() default 10;
 
@@ -71,6 +81,8 @@ public @interface ActivityCompletionRetryOptions {
      * Minimum number of retry attempts (including the initial attempt). In case
      * of failures at least this number of attempts is executed independently of
      * {@link #retryExpirationSeconds()}. Default value is 1.
+     *
+     * @return minimum number of retry attempts
      */
     int minimumAttempts() default 1;
 

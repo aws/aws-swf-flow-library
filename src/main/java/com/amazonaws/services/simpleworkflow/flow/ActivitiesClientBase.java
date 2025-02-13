@@ -16,7 +16,7 @@ package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
 import com.amazonaws.services.simpleworkflow.flow.generic.GenericActivityClient;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
 
 public abstract class ActivitiesClientBase implements ActivitiesClient {
 

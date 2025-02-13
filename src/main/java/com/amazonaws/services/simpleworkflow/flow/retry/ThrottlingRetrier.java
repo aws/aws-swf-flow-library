@@ -14,13 +14,13 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.retry;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.retry.RetryUtils;
 import com.amazonaws.services.simpleworkflow.flow.worker.BackoffThrottler;
 import com.amazonaws.services.simpleworkflow.flow.worker.BackoffThrottlerWithJitter;
 import com.amazonaws.services.simpleworkflow.flow.worker.ExponentialRetryParameters;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.retry.RetryUtils;
 
 /**
  * A retrier only for throttling exception.
@@ -42,6 +42,6 @@ public class ThrottlingRetrier extends Retrier {
 
     @Override
     protected boolean shouldRetry(RuntimeException e) {
-        return e instanceof AmazonServiceException && RetryUtils.isThrottlingException((AmazonServiceException) e);
+        return e instanceof AwsServiceException && RetryUtils.isThrottlingException((AwsServiceException) e);
     }
 }

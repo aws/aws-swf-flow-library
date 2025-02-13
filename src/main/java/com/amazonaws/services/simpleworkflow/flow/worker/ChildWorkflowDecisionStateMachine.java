@@ -14,11 +14,12 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.model.Decision;
-import com.amazonaws.services.simpleworkflow.model.DecisionType;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.RequestCancelExternalWorkflowExecutionDecisionAttributes;
-import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionDecisionAttributes;
+import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
+import software.amazon.awssdk.services.swf.model.Decision;
+import software.amazon.awssdk.services.swf.model.DecisionType;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.RequestCancelExternalWorkflowExecutionDecisionAttributes;
+import software.amazon.awssdk.services.swf.model.StartChildWorkflowExecutionDecisionAttributes;
 
 class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
 
@@ -26,19 +27,27 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
 
     private String workflowId;
 
-    public ChildWorkflowDecisionStateMachine(DecisionId id, StartChildWorkflowExecutionDecisionAttributes startAttributes) {
+    private SimpleWorkflowClientConfig clientConfig;
+
+    private BackoffThrottlerWithJitter throttler;
+
+    public ChildWorkflowDecisionStateMachine(DecisionId id, StartChildWorkflowExecutionDecisionAttributes startAttributes, SimpleWorkflowClientConfig clientConfig) {
         super(id);
         this.startAttributes = startAttributes;
-        this.workflowId = startAttributes.getWorkflowId();
+        this.workflowId = startAttributes.workflowId();
+        this.clientConfig = clientConfig;
+        throttler = new BackoffThrottlerWithJitter(clientConfig.getInitialSleepForDecisionThrottleInMillis(), clientConfig.getMaxSleepForDecisionThrottleInMillis(), clientConfig.getBackoffCoefficientForDecisionThrottle());
     }
-    
+
     /**
      * Used for unit testing
      */
-    ChildWorkflowDecisionStateMachine(DecisionId id, StartChildWorkflowExecutionDecisionAttributes startAttributes, DecisionState state) {
+    ChildWorkflowDecisionStateMachine(DecisionId id, StartChildWorkflowExecutionDecisionAttributes startAttributes, DecisionState state, SimpleWorkflowClientConfig clientConfig) {
         super(id, state);
         this.startAttributes = startAttributes;
-        this.workflowId = startAttributes.getWorkflowId();
+        this.workflowId = startAttributes.workflowId();
+        this.clientConfig = clientConfig;
+        throttler = new BackoffThrottlerWithJitter(clientConfig.getInitialSleepForDecisionThrottleInMillis(), clientConfig.getMaxSleepForDecisionThrottleInMillis(), clientConfig.getBackoffCoefficientForDecisionThrottle());
     }
 
     @Override
@@ -50,6 +59,15 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
             return createRequestCancelExternalWorkflowExecutionDecision();
         default:
             return null;
+        }
+    }
+
+    @Override
+    public void throttleDecision() {
+        try {
+            throttler.throttle();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -66,7 +84,7 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
 
     @Override
     public void handleInitiatedEvent(HistoryEvent event) {
-        String actualWorkflowId = event.getStartChildWorkflowExecutionInitiatedEventAttributes().getWorkflowId();
+        String actualWorkflowId = event.startChildWorkflowExecutionInitiatedEventAttributes().workflowId();
         if (!workflowId.equals(actualWorkflowId)) {
             workflowId = actualWorkflowId;
             id = new DecisionId(DecisionTarget.EXTERNAL_WORKFLOW, actualWorkflowId);
@@ -76,7 +94,7 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
 
     @Override
     public void handleInitiationFailedEvent(HistoryEvent event) {
-        String actualWorkflowId = event.getStartChildWorkflowExecutionFailedEventAttributes().getWorkflowId();
+        String actualWorkflowId = event.startChildWorkflowExecutionFailedEventAttributes().workflowId();
         if (!workflowId.equals(actualWorkflowId)) {
             workflowId = actualWorkflowId;
             id = new DecisionId(DecisionTarget.EXTERNAL_WORKFLOW, actualWorkflowId);
@@ -103,7 +121,12 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
         switch (state) {
         case CANCELLATION_DECISION_SENT:
             stateHistory.add("handleCancellationFailureEvent");
-            state = DecisionState.STARTED;
+            if (throttler.getFailureCount() < clientConfig.getMaxRetryForCancelingExternalWorkflow()) {
+                throttler.failure();
+                state = DecisionState.CANCELED_AFTER_STARTED;
+            } else {
+                state = DecisionState.STARTED;
+            }
             stateHistory.add(state.toString());
             break;
         default:
@@ -151,21 +174,17 @@ class ChildWorkflowDecisionStateMachine extends DecisionStateMachineBase {
             super.handleCompletionEvent();
         }
     }
-    
+
     private Decision createRequestCancelExternalWorkflowExecutionDecision() {
-        RequestCancelExternalWorkflowExecutionDecisionAttributes tryCancel = new RequestCancelExternalWorkflowExecutionDecisionAttributes();
-        tryCancel.setWorkflowId(workflowId);
-        Decision decision = new Decision();
-        decision.setRequestCancelExternalWorkflowExecutionDecisionAttributes(tryCancel);
-        decision.setDecisionType(DecisionType.RequestCancelExternalWorkflowExecution.toString());
-        return decision;
+        RequestCancelExternalWorkflowExecutionDecisionAttributes tryCancel = RequestCancelExternalWorkflowExecutionDecisionAttributes.builder()
+            .workflowId(workflowId).build();
+        return Decision.builder().requestCancelExternalWorkflowExecutionDecisionAttributes(tryCancel)
+            .decisionType(DecisionType.REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION).build();
     }
 
     private Decision createStartChildWorkflowExecutionDecision() {
-        Decision decision = new Decision();
-        decision.setStartChildWorkflowExecutionDecisionAttributes(startAttributes);
-        decision.setDecisionType(DecisionType.StartChildWorkflowExecution.toString());
-        return decision;
+        return Decision.builder().startChildWorkflowExecutionDecisionAttributes(startAttributes)
+            .decisionType(DecisionType.START_CHILD_WORKFLOW_EXECUTION).build();
     }
 
 }

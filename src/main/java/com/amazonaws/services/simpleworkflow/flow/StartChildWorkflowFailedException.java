@@ -14,9 +14,9 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.model.StartChildWorkflowExecutionFailedCause;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import software.amazon.awssdk.services.swf.model.StartChildWorkflowExecutionFailedCause;
 
 @SuppressWarnings("serial")
 public class StartChildWorkflowFailedException extends ChildWorkflowException {

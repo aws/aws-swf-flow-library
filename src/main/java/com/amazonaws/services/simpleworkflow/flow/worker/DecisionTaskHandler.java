@@ -18,9 +18,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.amazonaws.services.simpleworkflow.flow.core.AsyncTaskInfo;
-import com.amazonaws.services.simpleworkflow.model.DecisionTask;
-import com.amazonaws.services.simpleworkflow.model.RespondDecisionTaskCompletedRequest;
-
+import software.amazon.awssdk.services.swf.model.PollForDecisionTaskResponse;
 /**
  * This class is for internal use only and may be changed or removed without prior notice.
  * 
@@ -34,7 +32,7 @@ public abstract class DecisionTaskHandler {
     /**
      * The implementation should be called when a polling SWF Decider receives a
      * new WorkflowTask.
-     *
+     * 
      * @param decisionTaskIterator
      *            The decision task to handle. The reason for more then one task
      *            being received is pagination of the history. All tasks in the
@@ -44,12 +42,14 @@ public abstract class DecisionTaskHandler {
      *            method implementation aborts decision by rethrowing any
      *            exception from {@link Iterator#next()}.
      */
-    public abstract RespondDecisionTaskCompletedRequest handleDecisionTask(Iterator<DecisionTask> decisionTaskIterator) throws Exception;
+    public abstract HandleDecisionTaskResults handleDecisionTask(Iterator<PollForDecisionTaskResponse> decisionTaskIterator) throws Exception;
 
-    public abstract List<AsyncTaskInfo> getAsynchronousThreadDump(Iterator<DecisionTask> decisionTaskIterator) throws Exception;
+    public abstract List<AsyncTaskInfo> getAsynchronousThreadDump(Iterator<PollForDecisionTaskResponse> decisionTaskIterator) throws Exception;
 
-    public abstract String getAsynchronousThreadDumpAsString(Iterator<DecisionTask> decisionTaskIterator) throws Exception;
+    public abstract String getAsynchronousThreadDumpAsString(Iterator<PollForDecisionTaskResponse> decisionTaskIterator) throws Exception;
 
-    public abstract Object loadWorkflowThroughReplay(Iterator<DecisionTask> decisionTaskIterator) throws Exception;
+    public abstract Object loadWorkflowThroughReplay(Iterator<PollForDecisionTaskResponse> decisionTaskIterator) throws Exception;
+
+    public abstract AffinityHelper getAffinityHelper();
 
 }

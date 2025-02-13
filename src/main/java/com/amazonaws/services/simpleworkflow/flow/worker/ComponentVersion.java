@@ -13,33 +13,33 @@
  * permissions and limitations under the License.
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
-
+ 
 /**
  * @author fateev
  */
 class ComponentVersion {
-
+ 
     private final String componentName;
-
+ 
     private int maximumSupportedImplementationVersion;
-
+ 
     private int minimumSupportedImplementationVersion;
-
+ 
     private int maximumAllowedImplementationVersion = Integer.MAX_VALUE;
-
+ 
     /**
      * Actual current version
      */
     private int currentVersion;
-
+ 
     private Integer versionFromHistory;
-
+ 
     private Integer maxSkippedVersion;
-
+ 
     public ComponentVersion(String componentName) {
         this.componentName = componentName;
     }
-
+ 
     void setVersionFromHistory(int version) {
         if (versionFromHistory != null && version < versionFromHistory) {
             throw new IncompatibleWorkflowDefinition("Version from history cannot decrease from " + versionFromHistory + " to "
@@ -48,15 +48,15 @@ class ComponentVersion {
         currentVersion = version;
         versionFromHistory = version;
     }
-
+ 
     public String getComponentName() {
         return componentName;
     }
-
+ 
     public int getMaximumSupportedImplementationVersion() {
         return maximumSupportedImplementationVersion;
     }
-
+ 
     public void setMaximumSupportedImplementationVersion(int maximumSupportedImplementationVersion) {
         if (versionFromHistory != null && maximumSupportedImplementationVersion < versionFromHistory) {
             throw new IncompatibleWorkflowDefinition("Maximum supported implementation version="
@@ -65,11 +65,11 @@ class ComponentVersion {
         }
         this.maximumSupportedImplementationVersion = maximumSupportedImplementationVersion;
     }
-
+ 
     public int getMinimumSupportedImplementationVersion() {
         return minimumSupportedImplementationVersion;
     }
-
+ 
     public void setMinimumSupportedImplementationVersion(int minimumSupportedImplementationVersion) {
         this.minimumSupportedImplementationVersion = minimumSupportedImplementationVersion;
         if (versionFromHistory != null && versionFromHistory < minimumSupportedImplementationVersion) {
@@ -86,19 +86,19 @@ class ComponentVersion {
             currentVersion = minimumSupportedImplementationVersion;
         }
     }
-
+ 
     public int getMaximumAllowedImplementationVersion() {
         return maximumAllowedImplementationVersion;
     }
-
+ 
     public void setMaximumAllowedImplementationVersion(int maximumAllowedImplementationVersion) {
         this.maximumAllowedImplementationVersion = maximumAllowedImplementationVersion;
     }
-
+ 
     public int getCurrentVersion() {
         return currentVersion;
     }
-
+ 
     public boolean isVersion(int version, boolean replaying) {
         if (maximumSupportedImplementationVersion < version) {
             throw new IncompatibleWorkflowDefinition("version=" + version

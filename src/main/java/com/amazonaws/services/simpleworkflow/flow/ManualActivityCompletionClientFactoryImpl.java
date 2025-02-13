@@ -14,39 +14,39 @@
  */
 package com.amazonaws.services.simpleworkflow.flow;
 
-import com.amazonaws.services.simpleworkflow.AmazonSimpleWorkflow;
 import com.amazonaws.services.simpleworkflow.flow.config.SimpleWorkflowClientConfig;
+import software.amazon.awssdk.services.swf.SwfClient;
 
 
 public class ManualActivityCompletionClientFactoryImpl extends ManualActivityCompletionClientFactory {
 
-    private AmazonSimpleWorkflow service;
+    private SwfClient service;
 
     private DataConverter dataConverter = new JsonDataConverter();
 
     private SimpleWorkflowClientConfig config;
-
-    public ManualActivityCompletionClientFactoryImpl(AmazonSimpleWorkflow service) {
+    
+    public ManualActivityCompletionClientFactoryImpl(SwfClient service) {
         this(service, null);
     }
 
-    public ManualActivityCompletionClientFactoryImpl(AmazonSimpleWorkflow service, SimpleWorkflowClientConfig config) {
+    public ManualActivityCompletionClientFactoryImpl(SwfClient service, SimpleWorkflowClientConfig config) {
         this.service = service;
         this.config = config;
     }
 
-    public AmazonSimpleWorkflow getService() {
+    public SwfClient getService() {
         return service;
     }
-
-    public void setService(AmazonSimpleWorkflow service) {
+    
+    public void setService(SwfClient service) {
         this.service = service;
     }
-
+    
     public DataConverter getDataConverter() {
         return dataConverter;
     }
-
+    
     public void setDataConverter(DataConverter dataConverter) {
         this.dataConverter = dataConverter;
     }

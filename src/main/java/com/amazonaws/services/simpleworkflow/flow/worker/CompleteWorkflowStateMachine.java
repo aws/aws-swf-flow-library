@@ -14,10 +14,13 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
-import com.amazonaws.services.simpleworkflow.model.Decision;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.Decision;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
 
-
+/**
+ * This class is for internal use only and may be changed or removed without prior notice.
+ *
+ */
 public class CompleteWorkflowStateMachine implements DecisionStateMachine {
 
     private Decision decision;
@@ -39,6 +42,9 @@ public class CompleteWorkflowStateMachine implements DecisionStateMachine {
     public Decision getDecision() {
         return decision;
     }
+
+    @Override
+    public void throttleDecision() { }
 
     @Override
     public void handleInitiationFailedEvent(HistoryEvent event) {

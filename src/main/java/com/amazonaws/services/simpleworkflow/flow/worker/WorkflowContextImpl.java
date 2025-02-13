@@ -14,24 +14,27 @@
  */
 package com.amazonaws.services.simpleworkflow.flow.worker;
 
+import static com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution.fromSdkType;
+import static com.amazonaws.services.simpleworkflow.flow.model.WorkflowType.fromSdkType;
+
 import java.util.List;
 
 import com.amazonaws.services.simpleworkflow.flow.WorkflowClock;
 import com.amazonaws.services.simpleworkflow.flow.WorkflowContext;
 import com.amazonaws.services.simpleworkflow.flow.common.FlowHelpers;
 import com.amazonaws.services.simpleworkflow.flow.generic.ContinueAsNewWorkflowExecutionParameters;
-import com.amazonaws.services.simpleworkflow.model.ChildPolicy;
-import com.amazonaws.services.simpleworkflow.model.DecisionTask;
-import com.amazonaws.services.simpleworkflow.model.HistoryEvent;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecution;
-import com.amazonaws.services.simpleworkflow.model.WorkflowExecutionStartedEventAttributes;
-import com.amazonaws.services.simpleworkflow.model.WorkflowType;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowExecution;
+import com.amazonaws.services.simpleworkflow.flow.model.WorkflowType;
+import software.amazon.awssdk.services.swf.model.ChildPolicy;
+import software.amazon.awssdk.services.swf.model.HistoryEvent;
+import software.amazon.awssdk.services.swf.model.PollForDecisionTaskResponse;
+import software.amazon.awssdk.services.swf.model.WorkflowExecutionStartedEventAttributes;
 
 
 class WorkflowContextImpl implements WorkflowContext {
 
     private final WorkflowClock clock;
-    private final DecisionTask decisionTask;
+    private final PollForDecisionTaskResponse decisionTask;
     private boolean cancelRequested;
     private ContinueAsNewWorkflowExecutionParameters continueAsNewOnCompletion;
     private ComponentVersions componentVersions;
@@ -43,21 +46,21 @@ class WorkflowContextImpl implements WorkflowContext {
      */
     private WorkflowExecutionStartedEventAttributes workflowStartedEventAttributes;
 
-    public WorkflowContextImpl(DecisionTask decisionTask, WorkflowClock clock) {
+    public WorkflowContextImpl(PollForDecisionTaskResponse decisionTask, WorkflowClock clock) {
         this.decisionTask = decisionTask;
         this.clock = clock;
-        HistoryEvent firstHistoryEvent = decisionTask.getEvents().get(0);
-        this.workflowStartedEventAttributes = firstHistoryEvent.getWorkflowExecutionStartedEventAttributes();
+        HistoryEvent firstHistoryEvent = decisionTask.events().get(0);
+        this.workflowStartedEventAttributes = firstHistoryEvent.workflowExecutionStartedEventAttributes();
     }
     
     @Override
     public WorkflowExecution getWorkflowExecution() {
-        return decisionTask.getWorkflowExecution();
+        return fromSdkType(decisionTask.workflowExecution());
     }
 
     @Override
     public WorkflowType getWorkflowType() {
-        return decisionTask.getWorkflowType();
+        return fromSdkType(decisionTask.workflowType());
     }
 
     @Override
@@ -82,44 +85,44 @@ class WorkflowContextImpl implements WorkflowContext {
     @Override
     public WorkflowExecution getParentWorkflowExecution() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        return attributes.getParentWorkflowExecution();
+        return fromSdkType(attributes.parentWorkflowExecution());
     }
 
     @Override
     public List<String> getTagList() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        return attributes.getTagList();
+        return attributes.tagList();
     }
 
     @Override
     public ChildPolicy getChildPolicy() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        return ChildPolicy.fromValue(attributes.getChildPolicy());
+        return ChildPolicy.fromValue(attributes.childPolicyAsString());
     }
     
     @Override
     public String getContinuedExecutionRunId() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        return attributes.getContinuedExecutionRunId();
+        return attributes.continuedExecutionRunId();
     }
     
     @Override
     public long getExecutionStartToCloseTimeout() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        String result = attributes.getExecutionStartToCloseTimeout();
+        String result = attributes.executionStartToCloseTimeout();
         return FlowHelpers.durationToSeconds(result);
     }
     
     @Override
     public String getTaskList() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        return attributes.getTaskList().getName();
+        return attributes.taskList().name();
     }
 
     @Override
     public String getLambdaRole() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        return attributes.getLambdaRole();
+        return attributes.lambdaRole();
     }
 
     private WorkflowExecutionStartedEventAttributes getWorkflowStartedEventAttributes() {
@@ -129,7 +132,7 @@ class WorkflowContextImpl implements WorkflowContext {
     @Override
     public int getTaskPriority() {
         WorkflowExecutionStartedEventAttributes attributes = getWorkflowStartedEventAttributes();
-        String result = attributes.getTaskPriority();
+        String result = attributes.taskPriority();
         return FlowHelpers.taskPriorityToInt(result);
     }
     

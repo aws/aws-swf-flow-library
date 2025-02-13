@@ -15,7 +15,7 @@
 package com.amazonaws.services.simpleworkflow.flow;
 
 import com.amazonaws.services.simpleworkflow.flow.core.Promise;
-import com.amazonaws.services.simpleworkflow.model.ActivityType;
+import com.amazonaws.services.simpleworkflow.flow.model.ActivityType;
 
 public interface DynamicActivitiesClient extends ActivitiesClient {
 

@@ -41,6 +41,8 @@ public @interface Asynchronous {
      * completes. Default is <code>false</code> which means use the value of the
      * parent task. See {@link TryCatchFinally} for more info on daemon
      * semantic.
+     *
+     * @return true if task should be treated as daemon
      */
     boolean daemon() default false;
 }
