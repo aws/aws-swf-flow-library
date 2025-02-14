@@ -1,4 +1,11 @@
 # Releases of aws-swf-flow-library
+
+## 2.0.0
+* Use AWS Java SDK 2.0 (synchronous client interface).
+* Replace Constructor instantiation with Builder instantiation
+* Enforce recommended API request timeouts by default
+* Update printing History events/Decisions events with sorted properties
+
 ## 1.12.x
 The `1.12.x` release added following changes based on the `1.11.x` release:
 
